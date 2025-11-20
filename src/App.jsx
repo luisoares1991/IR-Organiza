@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, LogOut, LogIn, Save, Database } from 'lucide-react';
+import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, Save, Database } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO FIREBASE ---
+
+// ⚠️ MODO SEGURO (PARA SEU VS CODE / VERCEL)
+// Quando for usar no seu computador, DESCOMENTE este bloco e APAGUE o bloco de baixo.
+/*
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -13,12 +17,26 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
+const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+*/
+
+// ⚠️ MODO RÁPIDO (HARDCODED - APAGUE ESTE BLOCO AO USAR O .ENV)
+const firebaseConfig = {
+  apiKey: "AIzaSyB0ALAv5ixJuUSsBbz0CQMfNQIqKe9bZiM",
+  authDomain: "ir-app-71b88.firebaseapp.com",
+  projectId: "ir-app-71b88",
+  storageBucket: "ir-app-71b88.firebasestorage.app",
+  messagingSenderId: "981602959886",
+  appId: "1:981602959886:web:c23559c23308f2d018325f"
+};
+const appId = "ir-app-71b88";
+const GEMINI_KEY = "AIzaSyBGTNxmp0BjblNgx_enGojhG0HPUgGZvZ8";
+// -------------------------------------------------------
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-const googleProvider = new GoogleAuthProvider();
 
 // --- INDEXED DB (Imagens Locais) ---
 const DB_NAME = 'IROrganiza_Images';
@@ -65,7 +83,6 @@ const deleteImageLocally = async (id) => {
 
 // --- HELPERS SEGUROS (Anti-Crash) ---
 const formatCurrency = (val) => {
-  // Converte string numérica para numero se necessário
   const num = Number(val);
   if (isNaN(num)) return 'R$ 0,00';
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
@@ -74,16 +91,13 @@ const formatCurrency = (val) => {
 const formatDate = (dateString) => {
     if (!dateString) return '-';
     try {
-        const str = String(dateString); // Garante que é string
-        // Tenta dividir se for YYYY-MM-DD
+        const str = String(dateString); 
         if (str.includes('-')) {
             const parts = str.split('-');
             if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
         }
         return str;
-    } catch (e) {
-        return '-';
-    }
+    } catch (e) { return '-'; }
 }
 
 // --- COMPONENTES UI ---
@@ -119,7 +133,6 @@ const Badge = ({ category }) => {
     'Previdência': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
     'Outros': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
   };
-  // Proteção contra categoria nula ou objeto
   const cat = typeof category === 'string' ? category : 'Outros';
   return (
     <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 w-fit ${styles[cat] || styles['Outros']}`}>
@@ -131,7 +144,6 @@ const Badge = ({ category }) => {
 // --- MAIN APP ---
 export default function App() {
   const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState('dashboard');
   const [expenses, setExpenses] = useState([]);
   const [dependents, setDependents] = useState([]);
@@ -159,23 +171,16 @@ export default function App() {
     }
   }, [theme]);
 
-  // Auth Listener
+  // Auth Listener (ANÔNIMO)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
-    });
+    const initAuth = async () => {
+       try { await signInAnonymously(auth); } 
+       catch (e) { console.error("Auth Error", e); }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
-
-  const handleLogin = async () => {
-    try { await signInWithPopup(auth, googleProvider); } 
-    catch (error) { alert("Erro no login: " + error.message); }
-  };
-
-  const handleLogout = async () => {
-    if(confirm("Deseja realmente sair?")) await signOut(auth);
-  };
 
   // Data Fetching
   useEffect(() => {
@@ -207,7 +212,7 @@ export default function App() {
     setEditingId(null);
     setView('review');
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      const apiKey = GEMINI_KEY;
       const prompt = `Analise documento (nota fiscal/recibo). JSON estrito: { "razao_social": string, "cnpj_cpf": string_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde"|"Educação"|"Previdência"|"Outros", "descricao": string }`;
       
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
@@ -345,25 +350,7 @@ export default function App() {
   };
 
   // --- TELAS ---
-  if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
-
-  if (!user) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-6 text-center">
-        <div className="bg-blue-600 p-4 rounded-2xl mb-6 shadow-xl shadow-blue-200 dark:shadow-none">
-           <FileText size={48} className="text-white" />
-        </div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">IR Organiza</h1>
-        <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">Seu assistente inteligente para organizar recibos e declarações.</p>
-        
-        <Button onClick={handleLogin} className="w-full max-w-xs py-4 text-lg shadow-xl">
-          <LogIn size={24} />
-          Entrar com Google
-        </Button>
-        <p className="text-xs text-slate-400 mt-6">Faça login para manter seus dados seguros e sincronizados.</p>
-      </div>
-    );
-  }
+  if (!user) return <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
 
   const renderDashboard = () => {
     const total = expenses.reduce((acc, cur) => acc + (cur.valor || 0), 0);
@@ -372,7 +359,7 @@ export default function App() {
     return (
       <div className="space-y-6 pb-24">
         <div className="flex justify-between items-center">
-          <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">Olá, {user.displayName?.split(' ')[0]}</h1><p className="text-slate-500 text-sm">Suas despesas</p></div>
+          <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">IR Organiza</h1><p className="text-slate-500 text-sm">Suas despesas</p></div>
           <button onClick={() => setView('settings')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"><Settings/></button>
         </div>
         <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-6 border-none">
@@ -510,8 +497,15 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-slate-900 rounded-xl">
-           {user.photoURL && <img src={user.photoURL} className="w-12 h-12 rounded-full" />}
-           <div><div className="font-bold text-slate-900 dark:text-white">{user.displayName}</div><div className="text-xs text-slate-500">{user.email}</div></div>
+           {user.isAnonymous ? (
+             <div className="bg-slate-200 p-2 rounded-full"><Users size={24}/></div>
+           ) : (
+             user.photoURL && <img src={user.photoURL} className="w-12 h-12 rounded-full" />
+           )}
+           <div>
+             <div className="font-bold text-slate-900 dark:text-white">{user.isAnonymous ? 'Anônimo' : user.displayName}</div>
+             <div className="text-xs text-slate-500">ID: {user.uid.slice(0,8)}...</div>
+           </div>
         </div>
 
         <div>
@@ -541,8 +535,7 @@ export default function App() {
           </label>
         </div>
 
-        <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v1.5 - {user.uid.slice(0,6)}</div>
+        <div className="text-center text-xs text-slate-400">v1.6 - Restaurado</div>
      </div>
   );
 
