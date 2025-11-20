@@ -4,21 +4,23 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, query, onSnapshot, deleteDoc, doc, orderBy, Timestamp, getDocs } from 'firebase/firestore';
 
-// --- CONFIGURAÇÃO FIREBASE (Seus Dados Reais) ---
+// --- CONFIGURAÇÃO FIREBASE (Segura via Variáveis de Ambiente) ---
+// O Vite injeta automaticamente as variáveis definidas no arquivo .env
 const firebaseConfig = {
-  apiKey: "AIzaSyB0ALAv5ixJuUSsBbz0CQMfNQIqKe9bZiM",
-  authDomain: "ir-app-71b88.firebaseapp.com",
-  projectId: "ir-app-71b88",
-  storageBucket: "ir-app-71b88.firebasestorage.app",
-  messagingSenderId: "981602959886",
-  appId: "1:981602959886:web:c23559c23308f2d018325f"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Inicializando Firebase
+// Verifica se as chaves existem para evitar crash se o .env estiver vazio
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = "ir-app-71b88"; 
+const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID; // Usando ID do projeto como namespace
 
 // --- INDEXED DB (Armazenamento Local de Imagens) ---
 // Isso permite salvar as imagens no dispositivo sem usar nuvem/internet
@@ -221,7 +223,8 @@ export default function App() {
     
     try {
       const cleanBase64 = base64Data.split(',')[1];
-      const apiKey = "AIzaSyA40MASDn3oBONgjAoqOV5N2LplC5BOMWo"; 
+      // Acessando a chave do Gemini de forma segura via variável de ambiente
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
 
       const prompt = `
         Analise este documento (nota fiscal, recibo ou fatura) para Imposto de Renda Brasileiro.
@@ -261,7 +264,7 @@ export default function App() {
 
     } catch (error) {
       console.error("Erro:", error);
-      alert("Não foi possível analisar. Preencha manualmente.");
+      alert("Não foi possível analisar automaticamente. Verifique sua chave de API ou preencha manualmente.");
       setReviewData({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
     } finally {
       setAnalyzing(false);
