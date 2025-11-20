@@ -83,12 +83,4 @@ npm run dev
 
 Este é um projeto Open Source. Sinta-se livre para abrir Issues, sugerir melhorias ou enviar Pull Requests. A ideia é criar uma ferramenta útil para todos os brasileiros.
 
-☕ Apoie o Desenvolvedor
-
-Este aplicativo é disponibilizado gratuitamente, sem anúncios e com código aberto. Se ele te ajudou a economizar tempo (e talvez dinheiro no Leão 🦁), considere apoiar o desenvolvimento pagando um café!
-
-<a href="https://tipa.ai/agilizei" target="_blank">
-<img src="https://www.google.com/search?q=https://img.shields.io/badge/Apoiar%2520pelo%2520Tipa%2520A%C3%AD-FF0050%3Fstyle%3Dfor-the-badge%26logo%3Dko-fi%26logoColor%3Dwhite" alt="Apoie o projeto" />
-</a>
-
 Desenvolvido por Luis Ramos

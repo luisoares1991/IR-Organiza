@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+<<<<<<< HEAD
 import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, LogOut, LogIn, Save, Database } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
@@ -6,6 +7,14 @@ import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc
 
 // --- CONFIGURAÇÃO FIREBASE ---
 // O Vite injeta automaticamente as variáveis do arquivo .env
+=======
+import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, UserPlus, Download, AlertTriangle, Moon, Sun, Monitor, Filter, Save, Share2, Database, Heart, Coffee, ExternalLink, Edit, ArrowLeft, LogOut, LogIn } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { getFirestore, collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
+
+// --- CONFIGURAÇÃO FIREBASE ---
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -105,16 +114,23 @@ const Badge = ({ category }) => {
 };
 
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+<<<<<<< HEAD
 const formatDate = (dateString) => {
     if(!dateString) return '-';
     const date = new Date(dateString);
     return isNaN(date.getTime()) ? dateString : date.toLocaleDateString('pt-BR', {timeZone: 'UTC'});
 }
+=======
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
 
 // --- MAIN APP ---
 export default function App() {
   const [user, setUser] = useState(null);
+<<<<<<< HEAD
   const [authLoading, setAuthLoading] = useState(true);
+=======
+  const [authLoading, setAuthLoading] = useState(true); // Estado de carregamento inicial
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
   const [view, setView] = useState('dashboard');
   const [expenses, setExpenses] = useState([]);
   const [dependents, setDependents] = useState([]);
@@ -151,11 +167,19 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+<<<<<<< HEAD
+=======
+  // Login Google
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
   const handleLogin = async () => {
     try { await signInWithPopup(auth, googleProvider); } 
     catch (error) { alert("Erro no login: " + error.message); }
   };
 
+<<<<<<< HEAD
+=======
+  // Logout
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
   const handleLogout = async () => {
     if(confirm("Deseja realmente sair?")) await signOut(auth);
   };
@@ -267,6 +291,7 @@ export default function App() {
     setScannedFile(img || null);
     setScannedFileType(exp.mimeType);
     setView('review');
+<<<<<<< HEAD
   };
 
   // Dependents & Utils
@@ -299,6 +324,25 @@ export default function App() {
     link.href = selectedExpenseImage;
     link.download = `recibo.jpg`;
     link.click();
+=======
+  };
+
+  // Dependents & Utils
+  const handleAddDependent = async () => {
+    if (!newDependentName.trim()) return;
+    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'dependents'), { name: newDependentName.trim() });
+    setNewDependentName('');
+  };
+
+  const handleViewDetail = async (exp) => {
+    setSelectedExpense(exp);
+    setSelectedExpenseImage(null);
+    setView('detail');
+    if (exp.hasAttachment) {
+      const img = await getImageLocally(exp.id);
+      setSelectedExpenseImage(img);
+    }
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
   };
 
   const handleExport = async () => {
@@ -314,7 +358,11 @@ export default function App() {
 
   const handleImport = async (e) => {
     const file = e.target.files[0];
+<<<<<<< HEAD
     if (!file || !confirm("Importar dados? Isso vai adicionar ao seu histórico atual.")) return;
+=======
+    if (!file || !confirm("Importar dados?")) return;
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
@@ -323,7 +371,11 @@ export default function App() {
         for (const x of data.expenses) await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), x);
         alert("Importado com sucesso!");
         setView('dashboard');
+<<<<<<< HEAD
       } catch { alert("Erro na importação. Verifique o arquivo."); }
+=======
+      } catch { alert("Erro na importação."); }
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
     };
     reader.readAsText(file);
   };
@@ -394,7 +446,11 @@ export default function App() {
         <div className="space-y-3">
            {filtered.map(e => (
              <Card key={e.id} className="p-4 flex justify-between items-center" onClick={() => handleViewDetail(e)}>
+<<<<<<< HEAD
                 <div><div className="font-semibold text-slate-900 dark:text-white">{e.razao_social}</div><div className="text-xs text-slate-500">{formatDate(e.data)} • {e.categoria}</div></div>
+=======
+                <div><div className="font-semibold text-slate-900 dark:text-white">{e.razao_social}</div><div className="text-xs text-slate-500">{new Date(e.data).toLocaleDateString('pt-BR')} • {e.categoria}</div></div>
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
                 <div className="font-bold text-slate-900 dark:text-white">{formatCurrency(e.valor)}</div>
              </Card>
            ))}
@@ -446,6 +502,7 @@ export default function App() {
             {selectedExpense.mimeType === 'application/pdf' ? <div className="text-center text-slate-500"><FileType size={48} className="mx-auto mb-2 text-red-500"/>PDF Salvo</div> : <img src={selectedExpenseImage} className="w-full h-auto"/>}
          </div>
       )}
+<<<<<<< HEAD
       {selectedExpenseImage && <Button onClick={handleShareOrDownload} className="w-full"><Share2 size={18}/> Compartilhar</Button>}
       
       <Card className="p-5 space-y-4">
@@ -453,6 +510,12 @@ export default function App() {
          <div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-slate-500 font-bold uppercase">Valor</label><div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedExpense.valor)}</div></div><div><label className="text-xs text-slate-500 font-bold uppercase">Data</label><div className="text-lg text-slate-900 dark:text-white">{formatDate(selectedExpense.data)}</div></div></div>
          <div className="flex gap-2 pt-2 border-t dark:border-slate-700"><Badge category={selectedExpense.categoria}/><span className="px-2 py-1 rounded text-xs border dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-1"><Users size={12}/> {selectedExpense.dependente}</span></div>
          {selectedExpense.descricao && <div><label className="text-xs text-slate-500 font-bold uppercase">Descrição</label><div className="text-slate-900 dark:text-white">{selectedExpense.descricao}</div></div>}
+=======
+      <Card className="p-5 space-y-4">
+         <div><label className="text-xs text-slate-500 font-bold uppercase">Prestador</label><div className="text-lg font-semibold text-slate-900 dark:text-white">{selectedExpense.razao_social}</div><div className="text-sm text-slate-500">{selectedExpense.cnpj_cpf}</div></div>
+         <div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-slate-500 font-bold uppercase">Valor</label><div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedExpense.valor)}</div></div><div><label className="text-xs text-slate-500 font-bold uppercase">Data</label><div className="text-lg text-slate-900 dark:text-white">{new Date(selectedExpense.data).toLocaleDateString('pt-BR')}</div></div></div>
+         <div className="flex gap-2 pt-2 border-t dark:border-slate-700"><Badge category={selectedExpense.categoria}/><span className="px-2 py-1 rounded text-xs border dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-1"><Users size={12}/> {selectedExpense.dependente}</span></div>
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
       </Card>
       <Button onClick={()=>handleDelete(selectedExpense.id)} variant="danger" className="w-full"><Trash2 size={20}/> Excluir</Button>
     </div>
@@ -480,6 +543,7 @@ export default function App() {
            <p className="text-sm opacity-90 mb-4">App 100% gratuito e open source.</p>
            <a href="https://tipa.ai/agilizei" target="_blank" className="bg-white text-rose-600 py-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-lg active:scale-95"><Coffee size={20}/> Me pague um café</a>
         </Card>
+<<<<<<< HEAD
         
         <div className="space-y-3">
           <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center gap-3 text-slate-700 dark:text-white font-bold"><Download/> Backup de Dados (Exportar)</button>
@@ -494,6 +558,10 @@ export default function App() {
           </label>
         </div>
 
+=======
+
+        <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center gap-3 text-slate-700 dark:text-white font-bold"><Download/> Backup de Dados</button>
+>>>>>>> 1aafaf5ef12522201e58e771f6f06292b16bb100
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
         <div className="text-center text-xs text-slate-400">v1.2 - {user.uid.slice(0,6)}</div>
      </div>
@@ -521,3 +589,5 @@ export default function App() {
     </div>
   );
 }
+
+
