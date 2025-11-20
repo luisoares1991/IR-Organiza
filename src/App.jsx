@@ -65,21 +65,24 @@ const deleteImageLocally = async (id) => {
 
 // --- HELPERS SEGUROS (Anti-Crash) ---
 const formatCurrency = (val) => {
-  if (typeof val !== 'number') return 'R$ 0,00';
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  // Converte string numérica para numero se necessário
+  const num = Number(val);
+  if (isNaN(num)) return 'R$ 0,00';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
 };
 
 const formatDate = (dateString) => {
-    if (!dateString || typeof dateString !== 'string') return '-';
+    if (!dateString) return '-';
     try {
+        const str = String(dateString); // Garante que é string
         // Tenta dividir se for YYYY-MM-DD
-        if (dateString.includes('-')) {
-            const parts = dateString.split('-');
+        if (str.includes('-')) {
+            const parts = str.split('-');
             if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
         }
-        return dateString;
+        return str;
     } catch (e) {
-        return dateString;
+        return '-';
     }
 }
 
@@ -116,7 +119,8 @@ const Badge = ({ category }) => {
     'Previdência': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
     'Outros': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
   };
-  const cat = category || 'Outros';
+  // Proteção contra categoria nula ou objeto
+  const cat = typeof category === 'string' ? category : 'Outros';
   return (
     <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 w-fit ${styles[cat] || styles['Outros']}`}>
       {icons[cat] || icons['Outros']} {cat}
@@ -406,7 +410,7 @@ export default function App() {
         <div className="space-y-3">
            {filtered.map(e => (
              <Card key={e.id} className="p-4 flex justify-between items-center" onClick={() => handleViewDetail(e)}>
-                <div><div className="font-semibold text-slate-900 dark:text-white">{e.razao_social}</div><div className="text-xs text-slate-500">{formatDate(e.data)} • {e.categoria}</div></div>
+                <div><div className="font-semibold text-slate-900 dark:text-white">{String(e.razao_social)}</div><div className="text-xs text-slate-500">{formatDate(e.data)} • {String(e.categoria)}</div></div>
                 <div className="font-bold text-slate-900 dark:text-white">{formatCurrency(e.valor)}</div>
              </Card>
            ))}
@@ -448,6 +452,7 @@ export default function App() {
   );
 
   const renderDetail = () => {
+    // PROTEÇÃO CONTRA TELA BRANCA
     if(!selectedExpense) return null;
 
     return (
@@ -464,10 +469,33 @@ export default function App() {
         {selectedExpenseImage && <Button onClick={handleShareOrDownload} className="w-full"><Share2 size={18}/> Compartilhar</Button>}
         
         <Card className="p-5 space-y-4">
-          <div><label className="text-xs text-slate-500 font-bold uppercase">Prestador</label><div className="text-lg font-semibold text-slate-900 dark:text-white">{selectedExpense.razao_social}</div><div className="text-sm text-slate-500">{selectedExpense.cnpj_cpf}</div></div>
-          <div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-slate-500 font-bold uppercase">Valor</label><div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedExpense.valor)}</div></div><div><label className="text-xs text-slate-500 font-bold uppercase">Data</label><div className="text-lg text-slate-900 dark:text-white">{formatDate(selectedExpense.data)}</div></div></div>
-          <div className="flex gap-2 pt-2 border-t dark:border-slate-700"><Badge category={selectedExpense.categoria}/><span className="px-2 py-1 rounded text-xs border dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-1"><Users size={12}/> {selectedExpense.dependente}</span></div>
-          {selectedExpense.descricao && <div><label className="text-xs text-slate-500 font-bold uppercase">Descrição</label><div className="text-slate-900 dark:text-white">{selectedExpense.descricao}</div></div>}
+          <div>
+              <label className="text-xs text-slate-500 font-bold uppercase">Prestador</label>
+              <div className="text-lg font-semibold text-slate-900 dark:text-white">{String(selectedExpense.razao_social || 'Sem nome')}</div>
+              <div className="text-sm text-slate-500">{String(selectedExpense.cnpj_cpf || '-')}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+              <div>
+                  <label className="text-xs text-slate-500 font-bold uppercase">Valor</label>
+                  <div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedExpense.valor)}</div>
+              </div>
+              <div>
+                  <label className="text-xs text-slate-500 font-bold uppercase">Data</label>
+                  <div className="text-lg text-slate-900 dark:text-white">{formatDate(selectedExpense.data)}</div>
+              </div>
+          </div>
+          <div className="flex gap-2 pt-2 border-t dark:border-slate-700">
+              <Badge category={selectedExpense.categoria}/>
+              <span className="px-2 py-1 rounded text-xs border dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                  <Users size={12}/> {String(selectedExpense.dependente || 'Titular')}
+              </span>
+          </div>
+          {selectedExpense.descricao && (
+              <div>
+                  <label className="text-xs text-slate-500 font-bold uppercase">Descrição</label>
+                  <div className="text-slate-900 dark:text-white">{String(selectedExpense.descricao)}</div>
+              </div>
+          )}
         </Card>
         <Button onClick={()=>handleDelete(selectedExpense.id)} variant="danger" className="w-full"><Trash2 size={20}/> Excluir</Button>
       </div>
@@ -497,8 +525,11 @@ export default function App() {
            <a href="https://tipa.ai/agilizei" target="_blank" className="bg-white text-rose-600 py-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-lg active:scale-95"><Coffee size={20}/> Me pague um café</a>
         </Card>
         
-        <div className="space-y-3">
-          <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center gap-3 text-slate-700 dark:text-white font-bold hover:bg-slate-50 dark:hover:bg-slate-900"><Download/> Backup de Dados (Exportar)</button>
+        <div className="space-y-4 border-t dark:border-slate-800 pt-4">
+          <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center justify-between text-slate-700 dark:text-white font-bold hover:bg-slate-50 dark:hover:bg-slate-900">
+              <span className="flex items-center gap-3"><Download size={20}/> Backup de Dados (Exportar)</span>
+              <ChevronRight size={16} className="opacity-50"/>
+          </button>
           
           <label className="w-full p-4 rounded-xl border-2 border-blue-600 bg-blue-50 dark:bg-blue-900/10 border-dashed flex items-center gap-3 text-blue-700 dark:text-blue-400 font-bold cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors">
               <Upload/> 
@@ -511,7 +542,7 @@ export default function App() {
         </div>
 
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v1.4 - {user.uid.slice(0,6)}</div>
+        <div className="text-center text-xs text-slate-400">v1.5 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
