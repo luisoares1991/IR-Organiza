@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, LogOut, LogIn, Save, Database } from 'lucide-react';
+import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, LogOut, LogIn, Save, Database } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO FIREBASE ---
-// O Vite injeta automaticamente as variáveis do arquivo .env
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -107,8 +106,9 @@ const Badge = ({ category }) => {
 const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 const formatDate = (dateString) => {
     if(!dateString) return '-';
-    const date = new Date(dateString);
-    return isNaN(date.getTime()) ? dateString : date.toLocaleDateString('pt-BR', {timeZone: 'UTC'});
+    // Correção para datas no formato YYYY-MM-DD não sofrerem com fuso horário
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
 }
 
 // --- MAIN APP ---
@@ -269,14 +269,12 @@ export default function App() {
     setView('review');
   };
 
-  // Dependents & Utils
   const handleAddDependent = async () => {
     if (!newDependentName.trim()) return;
     await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'dependents'), { name: newDependentName.trim() });
     setNewDependentName('');
   };
 
-  // Função CORRIGIDA de abrir detalhes
   const handleViewDetail = async (exp) => {
     setSelectedExpense(exp);
     setSelectedExpenseImage(null);
@@ -435,28 +433,32 @@ export default function App() {
     </div>
   );
 
-  const renderDetail = () => (
-    <div className="pb-24 space-y-6">
-      <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-slate-950 z-10 py-4 border-b dark:border-slate-800">
-         <div className="flex gap-3 items-center"><button onClick={()=>setView('list')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft className="text-slate-900 dark:text-white"/></button><h2 className="text-lg font-bold text-slate-900 dark:text-white">Detalhes</h2></div>
-         <button onClick={() => handleEditStart(selectedExpense)} className="flex items-center gap-1 text-blue-600 text-sm font-medium bg-blue-50 px-3 py-1.5 rounded-lg"><Edit size={16}/> Editar</button>
+  const renderDetail = () => {
+    if(!selectedExpense) return null; // Proteção contra tela branca
+    
+    return (
+      <div className="pb-24 space-y-6">
+        <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-slate-950 z-10 py-4 border-b dark:border-slate-800">
+          <div className="flex gap-3 items-center"><button onClick={()=>setView('list')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft className="text-slate-900 dark:text-white"/></button><h2 className="text-lg font-bold text-slate-900 dark:text-white">Detalhes</h2></div>
+          <button onClick={() => handleEditStart(selectedExpense)} className="flex items-center gap-1 text-blue-600 text-sm font-medium bg-blue-50 px-3 py-1.5 rounded-lg"><Edit size={16}/> Editar</button>
+        </div>
+        {selectedExpenseImage && (
+          <div className="rounded-xl overflow-hidden border dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[150px]">
+              {selectedExpense.mimeType === 'application/pdf' ? <div className="text-center text-slate-500"><FileType size={48} className="mx-auto mb-2 text-red-500"/>PDF Salvo</div> : <img src={selectedExpenseImage} className="w-full h-auto"/>}
+          </div>
+        )}
+        {selectedExpenseImage && <Button onClick={handleShareOrDownload} className="w-full"><Share2 size={18}/> Compartilhar</Button>}
+        
+        <Card className="p-5 space-y-4">
+          <div><label className="text-xs text-slate-500 font-bold uppercase">Prestador</label><div className="text-lg font-semibold text-slate-900 dark:text-white">{selectedExpense.razao_social}</div><div className="text-sm text-slate-500">{selectedExpense.cnpj_cpf}</div></div>
+          <div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-slate-500 font-bold uppercase">Valor</label><div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedExpense.valor)}</div></div><div><label className="text-xs text-slate-500 font-bold uppercase">Data</label><div className="text-lg text-slate-900 dark:text-white">{formatDate(selectedExpense.data)}</div></div></div>
+          <div className="flex gap-2 pt-2 border-t dark:border-slate-700"><Badge category={selectedExpense.categoria}/><span className="px-2 py-1 rounded text-xs border dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-1"><Users size={12}/> {selectedExpense.dependente}</span></div>
+          {selectedExpense.descricao && <div><label className="text-xs text-slate-500 font-bold uppercase">Descrição</label><div className="text-slate-900 dark:text-white">{selectedExpense.descricao}</div></div>}
+        </Card>
+        <Button onClick={()=>handleDelete(selectedExpense.id)} variant="danger" className="w-full"><Trash2 size={20}/> Excluir</Button>
       </div>
-      {selectedExpenseImage && (
-         <div className="rounded-xl overflow-hidden border dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[150px]">
-            {selectedExpense.mimeType === 'application/pdf' ? <div className="text-center text-slate-500"><FileType size={48} className="mx-auto mb-2 text-red-500"/>PDF Salvo</div> : <img src={selectedExpenseImage} className="w-full h-auto"/>}
-         </div>
-      )}
-      {selectedExpenseImage && <Button onClick={handleShareOrDownload} className="w-full"><Share2 size={18}/> Compartilhar</Button>}
-      
-      <Card className="p-5 space-y-4">
-         <div><label className="text-xs text-slate-500 font-bold uppercase">Prestador</label><div className="text-lg font-semibold text-slate-900 dark:text-white">{selectedExpense.razao_social}</div><div className="text-sm text-slate-500">{selectedExpense.cnpj_cpf}</div></div>
-         <div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-slate-500 font-bold uppercase">Valor</label><div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedExpense.valor)}</div></div><div><label className="text-xs text-slate-500 font-bold uppercase">Data</label><div className="text-lg text-slate-900 dark:text-white">{formatDate(selectedExpense.data)}</div></div></div>
-         <div className="flex gap-2 pt-2 border-t dark:border-slate-700"><Badge category={selectedExpense.categoria}/><span className="px-2 py-1 rounded text-xs border dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-1"><Users size={12}/> {selectedExpense.dependente}</span></div>
-         {selectedExpense.descricao && <div><label className="text-xs text-slate-500 font-bold uppercase">Descrição</label><div className="text-slate-900 dark:text-white">{selectedExpense.descricao}</div></div>}
-      </Card>
-      <Button onClick={()=>handleDelete(selectedExpense.id)} variant="danger" className="w-full"><Trash2 size={20}/> Excluir</Button>
-    </div>
-  );
+    );
+  };
 
   const renderSettings = () => (
      <div className="pb-24 space-y-6">
@@ -482,9 +484,9 @@ export default function App() {
         </Card>
         
         <div className="space-y-3">
-          <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center gap-3 text-slate-700 dark:text-white font-bold"><Download/> Backup de Dados (Exportar)</button>
+          <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center gap-3 text-slate-700 dark:text-white font-bold hover:bg-slate-50 dark:hover:bg-slate-900"><Download/> Backup de Dados (Exportar)</button>
           
-          <label className="w-full p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center gap-3 text-slate-700 dark:text-white font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
+          <label className="w-full p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center gap-3 text-slate-700 dark:text-white font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
               <Upload className="text-slate-400"/> 
               <div className="text-left">
                   <div>Restaurar Backup (Importar)</div>
@@ -495,7 +497,7 @@ export default function App() {
         </div>
 
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v1.2 - {user.uid.slice(0,6)}</div>
+        <div className="text-center text-xs text-slate-400">v1.3 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
