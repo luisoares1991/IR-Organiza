@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Upload, Check, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Calendar, Activity, GraduationCap, HelpCircle, FileType, Settings, UserPlus, Download, FileJson, AlertTriangle, Moon, Sun, Monitor, Filter, Save, Share2, HardDrive, Database, Heart, Coffee, ExternalLink, Github } from 'lucide-react';
+import { Camera, Upload, Check, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Calendar, Activity, GraduationCap, HelpCircle, FileType, Settings, UserPlus, Download, FileJson, AlertTriangle, Moon, Sun, Monitor, Filter, Save, Share2, HardDrive, Database, Heart, Coffee, ExternalLink, Github, Edit, ArrowLeft } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { getFirestore, collection, addDoc, query, onSnapshot, deleteDoc, doc, orderBy, Timestamp, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, query, onSnapshot, deleteDoc, doc, orderBy, Timestamp, getDocs, updateDoc } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO FIREBASE (Segura via Variáveis de Ambiente) ---
 // O Vite injeta automaticamente as variáveis definidas no arquivo .env
@@ -16,14 +16,12 @@ const firebaseConfig = {
 };
 
 // Inicializando Firebase
-// Verifica se as chaves existem para evitar crash se o .env estiver vazio
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID; // Usando ID do projeto como namespace
+const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
 // --- INDEXED DB (Armazenamento Local de Imagens) ---
-// Isso permite salvar as imagens no dispositivo sem usar nuvem/internet
 const DB_NAME = 'IROrganiza_Images';
 const STORE_NAME = 'receipt_files';
 
@@ -78,8 +76,8 @@ const deleteImageLocally = async (id) => {
 
 // --- COMPONENTES UI ---
 
-const Card = ({ children, className = "" }) => (
-  <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors ${className}`}>
+const Card = ({ children, className = "", onClick }) => (
+  <div onClick={onClick} className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors ${className} ${onClick ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}`}>
     {children}
   </div>
 );
@@ -141,8 +139,11 @@ export default function App() {
   // Estado para o fluxo de scan/review/detail
   const [scannedFile, setScannedFile] = useState(null); 
   const [scannedFileType, setScannedFileType] = useState('');
-  const [selectedExpense, setSelectedExpense] = useState(null); // Para visualização detalhada
-  const [selectedExpenseImage, setSelectedExpenseImage] = useState(null); // Imagem carregada do DB local
+  const [selectedExpense, setSelectedExpense] = useState(null);
+  const [selectedExpenseImage, setSelectedExpenseImage] = useState(null);
+  
+  // Estado para edição
+  const [editingId, setEditingId] = useState(null);
 
   const [reviewData, setReviewData] = useState({
     razao_social: '',
@@ -219,6 +220,7 @@ export default function App() {
 
   const analyzeFileWithGemini = async (base64Data, mimeType) => {
     setAnalyzing(true);
+    setEditingId(null); // Garantir que não é edição
     setView('review'); 
     
     try {
@@ -280,23 +282,34 @@ export default function App() {
 
     setLoading(true);
     try {
-      // 1. Salva metadados no Firestore (Nuvem)
-      const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), {
+      const expenseData = {
         ...reviewData,
         valor: parseFloat(reviewData.valor),
         createdAt: new Date().toISOString(),
-        hasAttachment: !!scannedFile,
-        mimeType: scannedFileType
-      });
+        hasAttachment: !!scannedFile || (editingId ? (selectedExpense?.hasAttachment || false) : false),
+        mimeType: scannedFileType || (editingId ? (selectedExpense?.mimeType || '') : '')
+      };
 
-      // 2. Salva imagem no IndexedDB (Local do Celular)
-      if (scannedFile) {
-        await saveImageLocally(docRef.id, scannedFile);
+      let targetId = editingId;
+
+      if (editingId) {
+        // MODO EDIÇÃO
+        await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'expenses', editingId), expenseData);
+      } else {
+        // MODO CRIAÇÃO
+        const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), expenseData);
+        targetId = docRef.id;
+      }
+
+      // Salvar imagem se houver uma nova
+      if (scannedFile && targetId) {
+        await saveImageLocally(targetId, scannedFile);
       }
 
       setView('dashboard');
       setScannedFile(null);
       setScannedFileType('');
+      setEditingId(null);
     } catch (error) {
       console.error("Erro ao salvar:", error);
       alert("Erro ao salvar. Tente novamente.");
@@ -305,12 +318,35 @@ export default function App() {
     }
   };
 
+  const handleEditStart = async (expense) => {
+    setEditingId(expense.id);
+    setReviewData({
+        razao_social: expense.razao_social,
+        cnpj_cpf: expense.cnpj_cpf,
+        valor: expense.valor,
+        data: expense.data,
+        categoria: expense.categoria,
+        dependente: expense.dependente,
+        descricao: expense.descricao
+    });
+    
+    const img = await getImageLocally(expense.id);
+    if (img) {
+        setScannedFile(img);
+        setScannedFileType(expense.mimeType);
+    } else {
+        setScannedFile(null);
+    }
+
+    setView('review');
+  };
+
   const handleDelete = async (id) => {
     if (!confirm("Tem certeza? A imagem local também será apagada.")) return;
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'expenses', id));
       await deleteImageLocally(id);
-      if (selectedExpense?.id === id) setView('list'); // Se estava vendo o detalhe, volta pra lista
+      if (selectedExpense?.id === id) setView('list'); 
     } catch (e) {
       console.error(e);
     }
@@ -320,7 +356,7 @@ export default function App() {
 
   const handleViewExpense = async (expense) => {
     setSelectedExpense(expense);
-    setSelectedExpenseImage(null); // Reset
+    setSelectedExpenseImage(null); 
     setView('detail');
 
     if (expense.hasAttachment) {
@@ -332,12 +368,10 @@ export default function App() {
   const handleShareOrDownload = async () => {
     if (!selectedExpense || !selectedExpenseImage) return;
 
-    // Converter Base64 para Blob para permitir download/share
     const fetchRes = await fetch(selectedExpenseImage);
     const blob = await fetchRes.blob();
     const file = new File([blob], `recibo_${selectedExpense.razao_social.replace(/\s+/g, '_')}_${selectedExpense.data}.jpg`, { type: blob.type });
 
-    // Tentar usar API nativa de compartilhamento (Mobile)
     if (navigator.share) {
       try {
         await navigator.share({
@@ -351,7 +385,6 @@ export default function App() {
       }
     }
 
-    // Fallback: Download direto (Desktop ou se Share falhar)
     const link = document.createElement('a');
     link.href = selectedExpenseImage;
     link.download = `recibo_${selectedExpense.razao_social}_${selectedExpense.data}.jpg`;
@@ -461,7 +494,7 @@ export default function App() {
       </Card>
 
       <div className="grid grid-cols-2 gap-4">
-        <button onClick={() => setView('scan')} className="col-span-2 flex flex-col items-center justify-center p-6 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border-2 border-blue-100 dark:border-blue-800 active:scale-95 transition-transform">
+        <button onClick={() => { setEditingId(null); setView('scan'); }} className="col-span-2 flex flex-col items-center justify-center p-6 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border-2 border-blue-100 dark:border-blue-800 active:scale-95 transition-transform">
           <div className="flex gap-2 mb-2"><Camera size={24} /><Plus size={24} /></div>
           <span className="font-bold text-lg">Nova Despesa</span>
         </button>
@@ -495,11 +528,16 @@ export default function App() {
 
   const renderDetail = () => (
     <div className="pb-24">
-      <div className="sticky top-0 bg-white dark:bg-slate-900 z-10 p-4 border-b dark:border-slate-800 flex items-center gap-3">
-        <button onClick={() => setView('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-900 dark:text-white">
-          <ChevronRight size={20} className="rotate-180" />
+      <div className="sticky top-0 bg-white dark:bg-slate-900 z-10 p-4 border-b dark:border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+            <button onClick={() => setView('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-900 dark:text-white">
+            <ArrowLeft size={20} />
+            </button>
+            <h2 className="font-bold text-lg text-slate-900 dark:text-white">Detalhes</h2>
+        </div>
+        <button onClick={() => handleEditStart(selectedExpense)} className="text-blue-600 font-medium text-sm flex items-center gap-1 px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100">
+            <Edit size={16} /> Editar
         </button>
-        <h2 className="font-bold text-lg text-slate-900 dark:text-white">Detalhes</h2>
       </div>
 
       <div className="p-4 space-y-6">
@@ -535,8 +573,9 @@ export default function App() {
               <div>
                 <label className="text-xs text-slate-500 uppercase font-bold">Prestador</label>
                 <div className="text-lg font-semibold text-slate-900 dark:text-white">{selectedExpense.razao_social}</div>
-                <div className="text-sm text-slate-500">{selectedExpense.cnpj_cpf}</div>
+                <div className="text-sm text-slate-500 font-mono">{selectedExpense.cnpj_cpf}</div>
               </div>
+              
               <div className="grid grid-cols-2 gap-4">
                  <div>
                     <label className="text-xs text-slate-500 uppercase font-bold">Valor</label>
@@ -547,10 +586,16 @@ export default function App() {
                     <div className="text-lg text-slate-800 dark:text-slate-200">{new Date(selectedExpense.data).toLocaleDateString('pt-BR')}</div>
                  </div>
               </div>
-              <div className="flex gap-2">
+
+              <div>
+                <label className="text-xs text-slate-500 uppercase font-bold">Descrição</label>
+                <div className="text-slate-800 dark:text-slate-200">{selectedExpense.descricao || '-'}</div>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t dark:border-slate-800">
                  <Badge category={selectedExpense.categoria} />
-                 <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                    {selectedExpense.dependente}
+                 <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                    <Users size={12} /> {selectedExpense.dependente}
                  </span>
               </div>
             </Card>
@@ -637,12 +682,13 @@ export default function App() {
     </div>
   );
 
-  // Reuse List from previous response but modify click to go to detail
   const renderList = () => {
-     // (Mesma lógica de filtro de ano da resposta anterior...)
      const availableYears = [...new Set(expenses.map(e => new Date(e.data).getFullYear()))].sort((a,b) => b - a);
      if (availableYears.length === 0) { const currentYear = new Date().getFullYear(); if (!availableYears.includes(currentYear)) availableYears.push(currentYear); }
-     const filteredExpenses = expenses.filter(e => new Date(e.data).getFullYear().toString() === filterYear);
+     
+     // Se não houver ano selecionado, usar o mais recente
+     const targetYear = filterYear || availableYears[0].toString();
+     const filteredExpenses = expenses.filter(e => new Date(e.data).getFullYear().toString() === targetYear);
 
      return (
        <div className="pb-24">
@@ -656,13 +702,12 @@ export default function App() {
          <div className="p-4 space-y-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
                {availableYears.map(year => (
-                 <button key={year} onClick={() => setFilterYear(year.toString())} className={`px-4 py-1.5 rounded-full text-sm font-medium ${filterYear === year.toString() ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}>{year}</button>
+                 <button key={year} onClick={() => setFilterYear(year.toString())} className={`px-4 py-1.5 rounded-full text-sm font-medium ${targetYear === year.toString() ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}>{year}</button>
                ))}
             </div>
             <div className="space-y-3">
               {filteredExpenses.map(expense => (
                 <Card key={expense.id} className="p-4 flex justify-between items-center" onClick={() => handleViewExpense(expense)}> {/* CLICK AQUI */}
-                   {/* ... (mesmo conteúdo do card anterior) ... */}
                    <div>
                       <div className="font-semibold text-slate-900 dark:text-slate-100 text-lg">{expense.razao_social}</div>
                       <div className="text-xs text-slate-500">{new Date(expense.data).toLocaleDateString('pt-BR')} • {expense.categoria}</div>
@@ -679,7 +724,6 @@ export default function App() {
      );
   };
 
-  // Renders scan/review from previous context (omitted for brevity, logic is same but calls handleSaveExpense updated)
   const renderScan = () => (
      <div className="h-screen bg-black flex flex-col items-center justify-center p-4 relative">
         <button onClick={() => setView('dashboard')} className="absolute top-4 right-4 text-white/80 p-2"><X size={32}/></button>
@@ -696,27 +740,75 @@ export default function App() {
      </div>
   );
 
+  // CORRIGIDO: Agora inclui TODOS os campos de edição
   const renderReview = () => (
      <div className="pb-24">
         <div className="sticky top-0 bg-white dark:bg-slate-900 z-10 p-4 border-b dark:border-slate-800 flex items-center gap-3">
-           <button onClick={() => setView('dashboard')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><X size={20} className="text-slate-900 dark:text-white"/></button>
-           <h2 className="font-bold text-lg text-slate-900 dark:text-white">Revisar</h2>
+           <button onClick={() => setView(editingId ? 'detail' : 'dashboard')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><X size={20} className="text-slate-900 dark:text-white"/></button>
+           <h2 className="font-bold text-lg text-slate-900 dark:text-white">{editingId ? 'Editar Despesa' : 'Revisar Dados'}</h2>
         </div>
         <div className="p-4 space-y-6">
            {analyzing ? <div className="text-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div><p className="text-slate-500">Analisando...</p></div> : (
               <>
-                {/* Same form inputs as before */}
+                {scannedFile && (
+                  <div className="relative h-32 w-full bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden border dark:border-slate-700 flex items-center justify-center mb-4">
+                     {scannedFileType === 'application/pdf' ? (
+                        <div className="text-xs text-slate-500 flex items-center gap-1"><FileType size={16}/> PDF</div>
+                     ) : (
+                        <img src={scannedFile} alt="Preview" className="h-full object-contain" />
+                     )}
+                  </div>
+                )}
+
                 <div className="space-y-4">
-                   <div><label className="block text-sm text-slate-500 mb-1">Valor</label><input type="number" value={reviewData.valor} onChange={e => setReviewData({...reviewData, valor: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-lg font-bold dark:text-white"/></div>
-                   <div><label className="block text-sm text-slate-500 mb-1">Prestador</label><input type="text" value={reviewData.razao_social} onChange={e => setReviewData({...reviewData, razao_social: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-lg dark:text-white"/></div>
-                   {/* ... other fields ... */}
-                   <Button onClick={handleSaveExpense} disabled={loading}>{loading ? 'Salvando...' : 'Confirmar e Salvar'}</Button>
+                   {/* CATEGORIA */}
+                   <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Categoria</label>
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {['Saúde', 'Educação', 'Previdência', 'Outros'].map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => setReviewData({...reviewData, categoria: cat})}
+                          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                            reviewData.categoria === cat 
+                            ? 'bg-blue-600 text-white shadow-md' 
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                   <div className="grid grid-cols-2 gap-4">
+                       <div><label className="block text-sm text-slate-500 mb-1">Valor (R$)</label><input type="number" value={reviewData.valor} onChange={e => setReviewData({...reviewData, valor: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-lg font-bold dark:text-white outline-none border dark:border-slate-700 focus:border-blue-500"/></div>
+                       <div><label className="block text-sm text-slate-500 mb-1">Data</label><input type="date" value={reviewData.data} onChange={e => setReviewData({...reviewData, data: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-lg dark:text-white outline-none border dark:border-slate-700 focus:border-blue-500"/></div>
+                   </div>
+                   
+                   <div><label className="block text-sm text-slate-500 mb-1">Prestador (Razão Social)</label><input type="text" value={reviewData.razao_social} onChange={e => setReviewData({...reviewData, razao_social: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-lg dark:text-white outline-none border dark:border-slate-700 focus:border-blue-500"/></div>
+                   
+                   <div className="grid grid-cols-2 gap-4">
+                       <div><label className="block text-sm text-slate-500 mb-1">CNPJ/CPF</label><input type="text" value={reviewData.cnpj_cpf} onChange={e => setReviewData({...reviewData, cnpj_cpf: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-lg dark:text-white outline-none border dark:border-slate-700 focus:border-blue-500"/></div>
+                       <div>
+                           <label className="block text-sm text-slate-500 mb-1">Dependente</label>
+                           <select value={reviewData.dependente} onChange={e => setReviewData({...reviewData, dependente: e.target.value})} className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-lg dark:text-white outline-none border dark:border-slate-700 focus:border-blue-500">
+                               <option value="Titular">Titular</option>
+                               {dependents.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                           </select>
+                       </div>
+                   </div>
+
+                   <div><label className="block text-sm text-slate-500 mb-1">Descrição</label><input type="text" value={reviewData.descricao} onChange={e => setReviewData({...reviewData, descricao: e.target.value})} placeholder="Ex: Consulta de rotina" className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-lg dark:text-white outline-none border dark:border-slate-700 focus:border-blue-500"/></div>
+
+                   <Button onClick={handleSaveExpense} disabled={loading}>{loading ? 'Salvando...' : (editingId ? 'Salvar Alterações' : 'Confirmar e Salvar')}</Button>
                 </div>
               </>
            )}
         </div>
      </div>
   );
+  
   const renderDependentsPage = () => (
      <div className="pb-24">
         <div className="sticky top-0 bg-white dark:bg-slate-900 z-10 p-4 border-b dark:border-slate-800 flex items-center gap-3">
@@ -725,7 +817,10 @@ export default function App() {
         </div>
         <div className="p-4 space-y-4">
            <div className="flex gap-2"><input type="text" value={newDependentName} onChange={e => setNewDependentName(e.target.value)} placeholder="Nome" className="flex-1 p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"/><button onClick={handleAddDependent} className="bg-blue-600 text-white px-4 rounded-lg">Add</button></div>
-           <div className="space-y-2">{dependents.map(d => <div key={d.id} className="p-3 bg-white dark:bg-slate-800 rounded border dark:border-slate-700 dark:text-white">{d.name}</div>)}</div>
+           <div className="space-y-2">
+               <div className="p-3 bg-white dark:bg-slate-800 rounded border dark:border-slate-700 dark:text-white flex justify-between"><span>Titular</span> <span className="text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded">Padrão</span></div>
+               {dependents.map(d => <div key={d.id} className="p-3 bg-white dark:bg-slate-800 rounded border dark:border-slate-700 dark:text-white flex justify-between"><span>{d.name}</span> <button onClick={() => handleDelete(d.id)} className="text-red-500"><Trash2 size={16}/></button></div>)}
+            </div>
         </div>
      </div>
   );
