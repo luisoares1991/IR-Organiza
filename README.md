@@ -91,4 +91,4 @@ Este aplicativo é disponibilizado gratuitamente, sem anúncios e com código ab
 <img src="https://www.google.com/search?q=https://img.shields.io/badge/Apoiar%2520pelo%2520Tipa%2520A%C3%AD-FF0050%3Fstyle%3Dfor-the-badge%26logo%3Dko-fi%26logoColor%3Dwhite" alt="Apoie o projeto" />
 </a>
 
-Desenvolvido com ❤️ por Luis Ramos
+Desenvolvido por Luis Ramos
