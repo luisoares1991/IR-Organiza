@@ -63,6 +63,26 @@ const deleteImageLocally = async (id) => {
   } catch (e) { console.error(e); }
 };
 
+// --- HELPERS SEGUROS (Anti-Crash) ---
+const formatCurrency = (val) => {
+  if (typeof val !== 'number') return 'R$ 0,00';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+};
+
+const formatDate = (dateString) => {
+    if (!dateString || typeof dateString !== 'string') return '-';
+    try {
+        // Tenta dividir se for YYYY-MM-DD
+        if (dateString.includes('-')) {
+            const parts = dateString.split('-');
+            if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return dateString;
+    } catch (e) {
+        return dateString;
+    }
+}
+
 // --- COMPONENTES UI ---
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors ${className} ${onClick ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}`}>
@@ -96,20 +116,13 @@ const Badge = ({ category }) => {
     'Previdência': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
     'Outros': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
   };
+  const cat = category || 'Outros';
   return (
-    <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 w-fit ${styles[category] || styles['Outros']}`}>
-      {icons[category] || icons['Outros']} {category}
+    <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 w-fit ${styles[cat] || styles['Outros']}`}>
+      {icons[cat] || icons['Outros']} {cat}
     </span>
   );
 };
-
-const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-const formatDate = (dateString) => {
-    if(!dateString) return '-';
-    // Correção para datas no formato YYYY-MM-DD não sofrerem com fuso horário
-    const [year, month, day] = dateString.split('-');
-    return `${day}/${month}/${year}`;
-}
 
 // --- MAIN APP ---
 export default function App() {
@@ -276,6 +289,7 @@ export default function App() {
   };
 
   const handleViewDetail = async (exp) => {
+    if(!exp) return;
     setSelectedExpense(exp);
     setSelectedExpenseImage(null);
     setView('detail');
@@ -434,8 +448,8 @@ export default function App() {
   );
 
   const renderDetail = () => {
-    if(!selectedExpense) return null; // Proteção contra tela branca
-    
+    if(!selectedExpense) return null;
+
     return (
       <div className="pb-24 space-y-6">
         <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-slate-950 z-10 py-4 border-b dark:border-slate-800">
@@ -486,18 +500,18 @@ export default function App() {
         <div className="space-y-3">
           <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center gap-3 text-slate-700 dark:text-white font-bold hover:bg-slate-50 dark:hover:bg-slate-900"><Download/> Backup de Dados (Exportar)</button>
           
-          <label className="w-full p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center gap-3 text-slate-700 dark:text-white font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
-              <Upload className="text-slate-400"/> 
+          <label className="w-full p-4 rounded-xl border-2 border-blue-600 bg-blue-50 dark:bg-blue-900/10 border-dashed flex items-center gap-3 text-blue-700 dark:text-blue-400 font-bold cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors">
+              <Upload/> 
               <div className="text-left">
                   <div>Restaurar Backup (Importar)</div>
-                  <div className="text-xs text-slate-400 font-normal">Selecione o arquivo .json</div>
+                  <div className="text-xs font-normal opacity-80">Selecione o arquivo .json</div>
               </div>
               <input type="file" onChange={handleImport} accept=".json" className="hidden"/>
           </label>
         </div>
 
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v1.3 - {user.uid.slice(0,6)}</div>
+        <div className="text-center text-xs text-slate-400">v1.4 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
@@ -523,5 +537,3 @@ export default function App() {
     </div>
   );
 }
-
-
