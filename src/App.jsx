@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Upload, Check, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Calendar, Activity, GraduationCap, HelpCircle, FileType, Settings, UserPlus, Download, FileJson, AlertTriangle, Moon, Sun, Monitor, Filter, Save, Share2, HardDrive, Database, Heart, Coffee, ExternalLink, Github, Edit, ArrowLeft, LogIn, LogOut } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, query, onSnapshot, deleteDoc, doc, orderBy, Timestamp, getDocs, updateDoc } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO FIREBASE ---
@@ -123,11 +123,17 @@ const formatCurrency = (value) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+const formatDate = (dateString) => {
+    if(!dateString) return '-';
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+}
+
 // --- MAIN APP COMPONENT ---
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true); // Novo estado para loading do auth
+  const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState('dashboard'); 
   const [expenses, setExpenses] = useState([]);
   const [dependents, setDependents] = useState([]);
@@ -157,6 +163,39 @@ export default function App() {
 
   const [newDependentName, setNewDependentName] = useState('');
 
+  // --- GERENCIAMENTO DE NAVEGAÇÃO (HISTÓRICO) ---
+  useEffect(() => {
+    // Escuta o evento de "Voltar" do navegador/celular
+    const onPopState = (event) => {
+        if (event.state && event.state.view) {
+            setView(event.state.view);
+        } else {
+            // Se não tiver estado (ex: primeira carga), volta pro dashboard
+            setView('dashboard');
+        }
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // Função helper para navegar criando histórico
+  const navigateTo = (newView) => {
+      if (newView === view) return;
+      window.history.pushState({ view: newView }, '', '');
+      setView(newView);
+  };
+
+  // Função helper para voltar
+  const goBack = () => {
+      // Se tiver histórico, volta. Se não, vai pro dashboard.
+      if (window.history.state) {
+          window.history.back();
+      } else {
+          setView('dashboard');
+      }
+  };
+
   // --- THEME EFFECT ---
   useEffect(() => {
     const root = window.document.documentElement;
@@ -172,12 +211,16 @@ export default function App() {
     }
   }, [theme]);
 
-  // --- AUTH (GOOGLE LOGIN) ---
+  // --- AUTH ---
   useEffect(() => {
-    // Monitora o estado do login
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
+      // Se logar, garante que a view inicial é dashboard
+      if (currentUser) {
+          // Não damos pushState aqui para não bagunçar o histórico inicial
+          setView('dashboard');
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -189,6 +232,16 @@ export default function App() {
       alert("Erro no login com Google: " + error.message);
     }
   };
+
+  const handleAnonymousLogin = async () => {
+      if (confirm("⚠️ ATENÇÃO: MODO VISITANTE\n\nSeus dados NÃO serão salvos na nuvem. Se você limpar o celular ou trocar de dispositivo, perderá tudo.\n\nVocê precisará usar a opção 'Backup' manualmente para salvar seus dados.\n\nDeseja continuar?")) {
+          try {
+              await signInAnonymously(auth);
+          } catch (error) {
+              alert("Erro ao entrar como visitante: " + error.message);
+          }
+      }
+  }
 
   const handleLogout = async () => {
     if (confirm("Tem certeza que deseja sair?")) {
@@ -235,14 +288,12 @@ export default function App() {
 
   const analyzeFileWithGemini = async (base64Data, mimeType) => {
     setAnalyzing(true);
-    setEditingId(null); // Garantir que não é edição
-    setView('review'); 
+    setEditingId(null); 
+    navigateTo('review'); 
     
     try {
       const cleanBase64 = base64Data.split(',')[1];
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-
-      // Usando o modelo 2.5 que funcionou bem antes
       const model = "gemini-2.5-flash-preview-09-2025";
 
       const prompt = `
@@ -308,7 +359,6 @@ export default function App() {
         ...reviewData,
         valor: parseFloat(reviewData.valor),
         createdAt: new Date().toISOString(),
-        // Se for edição, mantém o hasAttachment antigo se não houver arquivo novo
         hasAttachment: !!scannedFile || (editingId ? (selectedExpense?.hasAttachment || false) : false),
         mimeType: scannedFileType || (editingId ? (selectedExpense?.mimeType || '') : '')
       };
@@ -316,20 +366,17 @@ export default function App() {
       let targetId = editingId;
 
       if (editingId) {
-        // MODO EDIÇÃO
         await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'expenses', editingId), expenseData);
       } else {
-        // MODO CRIAÇÃO
         const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), expenseData);
         targetId = docRef.id;
       }
 
-      // Salvar imagem se houver uma nova
       if (scannedFile && targetId) {
         await saveImageLocally(targetId, scannedFile);
       }
 
-      setView('dashboard');
+      navigateTo('dashboard');
       setScannedFile(null);
       setScannedFileType('');
       setEditingId(null);
@@ -361,7 +408,7 @@ export default function App() {
         setScannedFile(null);
     }
 
-    setView('review');
+    navigateTo('review');
   };
 
   const handleDelete = async (id) => {
@@ -369,7 +416,7 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'expenses', id));
       await deleteImageLocally(id);
-      if (selectedExpense?.id === id) setView('list'); 
+      if (selectedExpense?.id === id) goBack();
     } catch (e) {
       console.error(e);
     }
@@ -380,7 +427,7 @@ export default function App() {
   const handleViewExpense = async (expense) => {
     setSelectedExpense(expense);
     setSelectedExpenseImage(null); 
-    setView('detail');
+    navigateTo('detail');
 
     if (expense.hasAttachment) {
       const img = await getImageLocally(expense.id);
@@ -391,12 +438,10 @@ export default function App() {
   const handleShareOrDownload = async () => {
     if (!selectedExpense || !selectedExpenseImage) return;
 
-    // Converter Base64 para Blob para permitir download/share
     const fetchRes = await fetch(selectedExpenseImage);
     const blob = await fetchRes.blob();
     const file = new File([blob], `recibo_${selectedExpense.razao_social.replace(/\s+/g, '_')}_${selectedExpense.data}.jpg`, { type: blob.type });
 
-    // Tentar usar API nativa de compartilhamento (Mobile)
     if (navigator.share) {
       try {
         await navigator.share({
@@ -410,7 +455,6 @@ export default function App() {
       }
     }
 
-    // Fallback: Download direto (Desktop ou se Share falhar)
     const link = document.createElement('a');
     link.href = selectedExpenseImage;
     link.download = `recibo_${selectedExpense.razao_social}_${selectedExpense.data}.jpg`;
@@ -472,29 +516,15 @@ export default function App() {
         for (const dep of data.dependents) await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'dependents'), dep);
         for (const exp of data.expenses) await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), exp);
         alert(`Importação concluída!`);
-        setView('dashboard');
+        navigateTo('dashboard');
       } catch (err) { alert("Erro ao importar."); } 
       finally { setLoading(false); }
     };
     reader.readAsText(file);
   };
 
-  // --- RENDERERS ---
-
-  const totalDeductible = expenses.reduce((acc, curr) => acc + (curr.valor || 0), 0);
-  const byCategory = expenses.reduce((acc, curr) => {
-    acc[curr.categoria] = (acc[curr.categoria] || 0) + curr.valor;
-    return acc;
-  }, {});
-
-  // TELA DE LOGIN (RENDER CONDICIONAL)
-  if (authLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  // --- RENDER ---
+  if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
 
   if (!user) {
     return (
@@ -503,34 +533,34 @@ export default function App() {
            <FileText size={48} className="text-white" />
         </div>
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">IR Organiza</h1>
-        <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">
-          Seu assistente inteligente para organizar recibos e declarações do Imposto de Renda.
-        </p>
+        <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">Seu assistente inteligente para organizar recibos e declarações.</p>
         
         <Button onClick={handleLogin} className="w-full max-w-xs py-4 text-lg shadow-xl">
-          <LogIn size={24} />
-          Entrar com Google
+            <LogIn size={24} />
+            Entrar com Google
         </Button>
-        
-        <p className="text-xs text-slate-400 mt-6 max-w-xs mx-auto">
-          Faça login para manter seus dados seguros e sincronizados na nuvem.
-        </p>
+
+        <button onClick={handleAnonymousLogin} className="mt-6 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline transition-colors">
+            Entrar sem conta (Modo Visitante)
+        </button>
       </div>
     );
   }
 
-  // --- TELAS DO APP (SÓ RENDERIZA SE TIVER USER) ---
+  const totalDeductible = expenses.reduce((acc, curr) => acc + (curr.valor || 0), 0);
+  const byCategory = expenses.reduce((acc, curr) => {
+    acc[curr.categoria] = (acc[curr.categoria] || 0) + curr.valor;
+    return acc;
+  }, {});
 
   const renderDashboard = () => (
     <div className="space-y-6 pb-24">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">IR Organiza</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">Olá, {user.displayName?.split(' ')[0]}</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Olá, {user.displayName?.split(' ')[0] || 'Visitante'}</p>
         </div>
-        <button onClick={() => setView('settings')} className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
-          <Settings size={24} />
-        </button>
+        <button onClick={() => navigateTo('settings')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"><Settings size={24} /></button>
       </header>
 
       <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 dark:from-blue-800 dark:to-indigo-900 text-white p-6 border-none">
@@ -552,21 +582,14 @@ export default function App() {
       </Card>
 
       <div className="grid grid-cols-2 gap-4">
-        <button onClick={() => { setEditingId(null); setView('scan'); }} className="col-span-2 flex flex-col items-center justify-center p-6 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border-2 border-blue-100 dark:border-blue-800 active:scale-95 transition-transform">
+        <button onClick={() => { setEditingId(null); navigateTo('scan'); }} className="col-span-2 flex flex-col items-center justify-center p-6 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border-2 border-blue-100 dark:border-blue-800 active:scale-95 transition-transform">
           <div className="flex gap-2 mb-2"><Camera size={24} /><Plus size={24} /></div>
           <span className="font-bold text-lg">Nova Despesa</span>
         </button>
-        <button onClick={() => setView('list')} className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border-2 border-slate-100 active:scale-95">
-          <FileText size={24} className="mb-2 opacity-70" />
-          <span className="font-semibold text-sm">Extrato</span>
-        </button>
-        <button onClick={() => setView('dependents')} className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border-2 border-slate-100 active:scale-95">
-          <Users size={24} className="mb-2 opacity-70" />
-          <span className="font-semibold text-sm">Dependentes</span>
-        </button>
+        <button onClick={() => navigateTo('list')} className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border-2 border-slate-100 dark:border-slate-700"><FileText size={24} className="mb-2 opacity-70"/><span className="font-semibold text-sm">Extrato</span></button>
+        <button onClick={() => navigateTo('dependents')} className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border-2 border-slate-100 dark:border-slate-700"><Users size={24} className="mb-2 opacity-70"/><span className="font-semibold text-sm">Dependentes</span></button>
       </div>
       
-      {/* Lista Recente simplificada */}
       <div>
         <h3 className="font-bold text-slate-800 dark:text-slate-200 mb-3">Recentes</h3>
         <div className="space-y-3">
@@ -574,185 +597,12 @@ export default function App() {
              <Card key={e.id} className="p-4 flex justify-between items-center" onClick={() => handleViewExpense(e)}>
                <div className="truncate">
                  <div className="font-semibold text-slate-800 dark:text-slate-100">{e.razao_social}</div>
-                 <div className="text-xs text-slate-500">{new Date(e.data).toLocaleDateString('pt-BR')} • {e.categoria}</div>
+                 <div className="text-xs text-slate-500">{formatDate(e.data)} • {e.categoria}</div>
                </div>
                <div className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(e.valor)}</div>
              </Card>
           ))}
         </div>
-      </div>
-    </div>
-  );
-
-  const renderDetail = () => (
-    <div className="pb-24">
-      <div className="sticky top-0 bg-white dark:bg-slate-900 z-10 p-4 border-b dark:border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-            <button onClick={() => setView('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-900 dark:text-white">
-            <ArrowLeft size={20} />
-            </button>
-            <h2 className="font-bold text-lg text-slate-900 dark:text-white">Detalhes</h2>
-        </div>
-        <button onClick={() => handleEditStart(selectedExpense)} className="text-blue-600 font-medium text-sm flex items-center gap-1 px-3 py-1.5 bg-blue-50 rounded-lg hover:bg-blue-100">
-            <Edit size={16} /> Editar
-        </button>
-      </div>
-
-      <div className="p-4 space-y-6">
-        {selectedExpense && (
-          <>
-            {/* IMAGEM DO RECIBO (OFFLINE) */}
-            <div className="rounded-xl overflow-hidden border dark:border-slate-700 bg-slate-100 dark:bg-slate-800 relative group">
-              {selectedExpenseImage ? (
-                 selectedExpense.mimeType === 'application/pdf' ? (
-                    <div className="h-64 flex flex-col items-center justify-center text-slate-500">
-                       <FileType size={48} className="mb-2 text-red-500" />
-                       <span>Documento PDF Salvo</span>
-                    </div>
-                 ) : (
-                    <img src={selectedExpenseImage} alt="Comprovante" className="w-full h-auto max-h-[500px] object-contain" />
-                 )
-              ) : (
-                <div className="h-32 flex items-center justify-center text-slate-400 text-sm p-4 text-center">
-                   {selectedExpense.hasAttachment ? "Imagem não encontrada no dispositivo." : "Sem comprovante anexado."}
-                </div>
-              )}
-            </div>
-
-            {/* BOTÃO DE DOWNLOAD / DRIVE */}
-            {selectedExpenseImage && (
-              <Button onClick={handleShareOrDownload} variant="primary" className="w-full">
-                <Share2 size={20} />
-                Salvar no Drive / Compartilhar
-              </Button>
-            )}
-
-            <Card className="p-5 space-y-4">
-              <div>
-                <label className="text-xs text-slate-500 uppercase font-bold">Prestador</label>
-                <div className="text-lg font-semibold text-slate-900 dark:text-white">{selectedExpense.razao_social}</div>
-                <div className="text-sm text-slate-500 font-mono">{selectedExpense.cnpj_cpf}</div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                 <div>
-                    <label className="text-xs text-slate-500 uppercase font-bold">Valor</label>
-                    <div className="text-xl font-bold text-slate-800 dark:text-slate-200">{formatCurrency(selectedExpense.valor)}</div>
-                 </div>
-                 <div>
-                    <label className="text-xs text-slate-500 uppercase font-bold">Data</label>
-                    <div className="text-lg text-slate-800 dark:text-slate-200">{new Date(selectedExpense.data).toLocaleDateString('pt-BR')}</div>
-                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-500 uppercase font-bold">Descrição</label>
-                <div className="text-slate-800 dark:text-slate-200">{selectedExpense.descricao || '-'}</div>
-              </div>
-
-              <div className="flex gap-2 pt-2 border-t dark:border-slate-800">
-                 <Badge category={selectedExpense.categoria} />
-                 <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
-                    <Users size={12} /> {selectedExpense.dependente}
-                 </span>
-              </div>
-            </Card>
-
-            <Button onClick={() => handleDelete(selectedExpense.id)} variant="danger" className="w-full">
-              <Trash2 size={20} /> Excluir Despesa
-            </Button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-
-  // ... Reuse Review, Scan, Dependents, Settings from previous code, simplified for context ...
-  // Vou incluir o Settings novamente para garantir o botão de Backup
-  const renderSettings = () => (
-    <div className="pb-24">
-      <div className="sticky top-0 bg-white dark:bg-slate-900 z-10 p-4 border-b dark:border-slate-800 flex items-center gap-3">
-        <button onClick={() => setView('dashboard')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-900 dark:text-white"><ChevronRight size={20} className="rotate-180" /></button>
-        <h2 className="font-bold text-lg text-slate-900 dark:text-white">Configurações</h2>
-      </div>
-      <div className="p-4 space-y-6">
-        
-        <div className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-slate-900 rounded-xl">
-           {user.photoURL ? (
-             <img src={user.photoURL} className="w-12 h-12 rounded-full border-2 border-white dark:border-slate-700" />
-           ) : (
-             <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xl">
-               {user.displayName ? user.displayName[0] : 'U'}
-             </div>
-           )}
-           <div>
-             <div className="font-bold text-slate-900 dark:text-white">{user.displayName || 'Usuário'}</div>
-             <div className="text-xs text-slate-500">{user.email}</div>
-           </div>
-        </div>
-
-        {/* DONATE SECTION */}
-        <Card className="bg-gradient-to-br from-pink-500 to-rose-600 text-white border-none p-5">
-          <div className="flex items-center gap-2 mb-3">
-             <Heart className="text-white fill-white animate-pulse" size={24} />
-             <h3 className="font-bold text-lg">Apoie o Projeto</h3>
-          </div>
-          <p className="text-sm opacity-90 leading-relaxed mb-4">
-             Este app é 100% gratuito, livre de anúncios e com código aberto. 
-             Se ele te ajudou a organizar seu Imposto de Renda, considere fazer uma doação!
-          </p>
-          <a 
-            href="https://tipa.ai/agilizei" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 bg-white text-rose-600 font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-transform"
-          >
-             <Coffee size={20} />
-             Me pague um café (Tipa Aí)
-             <ExternalLink size={16} className="opacity-50" />
-          </a>
-        </Card>
-
-         <div>
-          <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase mb-3">Aparência</h3>
-          <div className="grid grid-cols-3 gap-2">
-             {['light','dark','system'].map(mode => (
-               <button key={mode} onClick={() => setTheme(mode)} className={`p-3 rounded-xl border-2 flex flex-col items-center ${theme===mode ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700' : 'border-slate-200 dark:border-slate-700'}`}>
-                  {mode==='light' ? <Sun size={20}/> : mode==='dark' ? <Moon size={20}/> : <Monitor size={20}/>}
-                  <span className="text-xs mt-1 capitalize">{mode}</span>
-               </button>
-             ))}
-          </div>
-         </div>
-
-         <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl flex gap-3 items-start">
-            <Database className="text-yellow-600 dark:text-yellow-400 shrink-0" size={20} />
-            <div>
-               <h3 className="font-bold text-yellow-800 dark:text-yellow-200 text-sm">Armazenamento Híbrido</h3>
-               <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-                  Dados (valores/datas) estão na Nuvem. Imagens dos recibos estão salvas <b>apenas neste dispositivo</b> para economizar espaço e funcionar offline.
-               </p>
-            </div>
-         </div>
-
-         <button onClick={handleExport} className="w-full bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-4 rounded-xl flex items-center gap-3">
-            <Download size={24} className="text-slate-500" />
-            <div className="text-left">
-               <div className="font-bold text-slate-900 dark:text-white">Backup de Dados</div>
-               <div className="text-xs text-slate-500">Baixar JSON com todas informações</div>
-            </div>
-         </button>
-
-         <label className="w-full bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 p-4 rounded-xl flex items-center gap-3 cursor-pointer">
-            <Upload size={24} className="text-slate-500" />
-            <div className="text-left">
-               <div className="font-bold text-slate-900 dark:text-white">Restaurar Backup</div>
-               <div className="text-xs text-slate-500">Carregar arquivo JSON</div>
-            </div>
-            <input type="file" onChange={handleImport} accept=".json" className="hidden"/>
-         </label>
-         
-         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
       </div>
     </div>
   );
@@ -766,9 +616,9 @@ export default function App() {
 
      return (
        <div className="pb-24">
-         <div className="sticky top-0 bg-white dark:bg-slate-900 z-10 p-4 border-b dark:border-slate-800 flex items-center justify-between">
+         <div className="sticky top-0 bg-white dark:bg-slate-950 z-10 p-4 border-b dark:border-slate-800 flex items-center justify-between">
            <div className="flex items-center gap-3">
-             <button onClick={() => setView('dashboard')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronRight size={20} className="rotate-180 text-slate-900 dark:text-white" /></button>
+             <button onClick={goBack} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronRight size={20} className="rotate-180 text-slate-900 dark:text-white" /></button>
              <h2 className="font-bold text-lg text-slate-900 dark:text-white">Extrato</h2>
            </div>
            <div className="text-sm font-medium text-slate-500">{filteredExpenses.length} itens</div>
@@ -776,15 +626,15 @@ export default function App() {
          <div className="p-4 space-y-6">
             <div className="flex gap-2 overflow-x-auto pb-2">
                {availableYears.map(year => (
-                 <button key={year} onClick={() => setFilterYear(year.toString())} className={`px-4 py-1.5 rounded-full text-sm font-medium ${targetYear === year.toString() ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}>{year}</button>
+                 <button key={year} onClick={() => setFilterYear(year.toString())} className={`px-4 py-1.5 rounded-full text-sm font-medium ${targetYear === year.toString() ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 border dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}>{year}</button>
                ))}
             </div>
             <div className="space-y-3">
               {filteredExpenses.map(expense => (
-                <Card key={expense.id} className="p-4 flex justify-between items-center" onClick={() => handleViewExpense(expense)}> {/* CLICK AQUI */}
+                <Card key={expense.id} className="p-4 flex justify-between items-center" onClick={() => handleViewExpense(expense)}>
                    <div>
                       <div className="font-semibold text-slate-900 dark:text-slate-100 text-lg">{expense.razao_social}</div>
-                      <div className="text-xs text-slate-500">{new Date(expense.data).toLocaleDateString('pt-BR')} • {expense.categoria}</div>
+                      <div className="text-xs text-slate-500">{formatDate(expense.data)} • {expense.categoria}</div>
                    </div>
                    <div className="flex flex-col items-end gap-2">
                       <div className="font-bold text-xl text-slate-800 dark:text-slate-200">{formatCurrency(expense.valor)}</div>
@@ -800,7 +650,7 @@ export default function App() {
 
   const renderScan = () => (
      <div className="h-screen bg-black flex flex-col items-center justify-center p-4 relative">
-        <button onClick={() => setView('dashboard')} className="absolute top-4 right-4 text-white/80 p-2"><X size={32}/></button>
+        <button onClick={goBack} className="absolute top-4 right-4 p-2"><X size={32} className="text-white"/></button>
         <div className="w-full max-w-xs space-y-4">
            <label className="block w-full cursor-pointer">
               <input type="file" accept="image/*" capture="environment" onChange={handleFileUpload} className="hidden" />
@@ -814,11 +664,10 @@ export default function App() {
      </div>
   );
 
-  // CORRIGIDO: Agora inclui TODOS os campos de edição
   const renderReview = () => (
      <div className="pb-24">
         <div className="sticky top-0 bg-white dark:bg-slate-900 z-10 p-4 border-b dark:border-slate-800 flex items-center gap-3">
-           <button onClick={() => setView(editingId ? 'detail' : 'dashboard')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><X size={20} className="text-slate-900 dark:text-white"/></button>
+           <button onClick={goBack} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><X size={20} className="text-slate-900 dark:text-white"/></button>
            <h2 className="font-bold text-lg text-slate-900 dark:text-white">{editingId ? 'Editar Despesa' : 'Revisar Dados'}</h2>
         </div>
         <div className="p-4 space-y-6">
@@ -835,7 +684,6 @@ export default function App() {
                 )}
 
                 <div className="space-y-4">
-                   {/* CATEGORIA */}
                    <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Categoria</label>
                     <div className="flex gap-2 overflow-x-auto pb-2">
@@ -882,11 +730,75 @@ export default function App() {
         </div>
      </div>
   );
-  
+
+  const renderDetail = () => {
+    if(!selectedExpense) return null;
+    return (
+      <div className="pb-24 space-y-6">
+        <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-slate-950 z-10 py-4 border-b dark:border-slate-800">
+           <div className="flex gap-3 items-center"><button onClick={goBack} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft className="text-slate-900 dark:text-white"/></button><h2 className="text-lg font-bold text-slate-900 dark:text-white">Detalhes</h2></div>
+           <button onClick={() => handleEditStart(selectedExpense)} className="flex items-center gap-1 text-blue-600 text-sm font-medium bg-blue-50 px-3 py-1.5 rounded-lg"><Edit size={16}/> Editar</button>
+        </div>
+        {selectedExpenseImage && (
+           <div className="rounded-xl overflow-hidden border dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[150px]">
+              {selectedExpense.mimeType === 'application/pdf' ? <div className="text-center text-slate-500"><FileType size={48} className="mx-auto mb-2 text-red-500"/>PDF Salvo</div> : <img src={selectedExpenseImage} className="w-full h-auto"/>}
+           </div>
+        )}
+        {selectedExpenseImage && <Button onClick={handleShareOrDownload} className="w-full"><Share2 size={18}/> Compartilhar</Button>}
+        <Card className="p-5 space-y-4">
+           <div><label className="text-xs text-slate-500 font-bold uppercase">Prestador</label><div className="text-lg font-semibold text-slate-900 dark:text-white">{selectedExpense.razao_social}</div><div className="text-sm text-slate-500">{selectedExpense.cnpj_cpf}</div></div>
+           <div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-slate-500 font-bold uppercase">Valor</label><div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedExpense.valor)}</div></div><div><label className="text-xs text-slate-500 font-bold uppercase">Data</label><div className="text-lg text-slate-900 dark:text-white">{formatDate(selectedExpense.data)}</div></div></div>
+           <div className="flex gap-2 pt-2 border-t dark:border-slate-700"><Badge category={selectedExpense.categoria}/><span className="px-2 py-1 rounded text-xs border dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-1"><Users size={12}/> {selectedExpense.dependente}</span></div>
+           {selectedExpense.descricao && <div><label className="text-xs text-slate-500 font-bold uppercase">Descrição</label><div className="text-slate-900 dark:text-white">{selectedExpense.descricao}</div></div>}
+        </Card>
+        <Button onClick={()=>handleDelete(selectedExpense.id)} variant="danger" className="w-full"><Trash2 size={20}/> Excluir</Button>
+      </div>
+    );
+  };
+
+  const renderSettings = () => (
+     <div className="pb-24 space-y-6">
+        <div className="flex gap-3 items-center sticky top-0 bg-white dark:bg-slate-950 z-10 py-4 border-b dark:border-slate-800">
+           <button onClick={goBack} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronRight className="rotate-180 text-slate-900 dark:text-white"/></button>
+           <h2 className="text-lg font-bold text-slate-900 dark:text-white">Configurações</h2>
+        </div>
+        <div className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-slate-900 rounded-xl">
+           <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">{user.displayName?.[0] || user.uid.slice(0,2).toUpperCase()}</div>
+           <div><div className="font-bold text-slate-900 dark:text-white">{user.displayName || (user.isAnonymous ? 'Visitante' : 'Usuário')}</div><div className="text-xs text-slate-500">{user.email || 'Local'}</div></div>
+        </div>
+
+        {user.isAnonymous && (
+            <div className="bg-yellow-50 text-yellow-800 p-4 rounded-xl text-sm border border-yellow-200 flex gap-3 items-start">
+                <AlertTriangle size={20} className="shrink-0 mt-0.5"/>
+                <div>
+                    <p className="font-bold mb-1">Modo Visitante Ativo</p>
+                    <p className="opacity-90">Seus dados estão salvos apenas neste dispositivo. Se limpar o cache, você perderá tudo. Faça o backup regularmente!</p>
+                </div>
+            </div>
+        )}
+        
+        <div><h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Aparência</h3><div className="grid grid-cols-3 gap-2">{['light','dark','system'].map(m=><button key={m} onClick={()=>setTheme(m)} className={`p-3 rounded-xl border-2 flex flex-col items-center ${theme===m?'border-blue-600 bg-blue-50 text-blue-600':'border-slate-200 dark:border-slate-700 dark:text-white'}`}><span className="capitalize text-xs">{m}</span></button>)}</div></div>
+        
+        <Card className="bg-gradient-to-br from-pink-500 to-rose-600 text-white border-none p-5">
+           <div className="flex gap-2 items-center mb-2 font-bold"><Heart className="animate-pulse"/> Apoie o Projeto</div>
+           <p className="text-sm opacity-90 mb-4">App 100% gratuito e open source.</p>
+           <a href="https://tipa.ai/agilizei" target="_blank" className="bg-white text-rose-600 py-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-lg active:scale-95"><Coffee size={20}/> Me pague um café</a>
+        </Card>
+
+        <div className="space-y-3">
+          <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center gap-3 text-slate-700 dark:text-white font-bold hover:bg-slate-50 dark:hover:bg-slate-900"><Download/> Backup de Dados</button>
+          <label className="w-full p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center gap-3 text-slate-700 dark:text-white font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"><Upload className="text-slate-400"/> <div className="text-left"><div>Restaurar Backup</div><div className="text-xs text-slate-400 font-normal">Selecione o arquivo .json</div></div><input type="file" onChange={handleImport} accept=".json" className="hidden"/></label>
+        </div>
+        
+        <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
+        <div className="text-center text-xs text-slate-400">v3.1 - {user.uid.slice(0,6)}</div>
+     </div>
+  );
+
   const renderDependentsPage = () => (
      <div className="pb-24">
         <div className="sticky top-0 bg-white dark:bg-slate-900 z-10 p-4 border-b dark:border-slate-800 flex items-center gap-3">
-           <button onClick={() => setView('dashboard')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronRight size={20} className="rotate-180 text-slate-900 dark:text-white"/></button>
+           <button onClick={goBack} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronRight size={20} className="rotate-180 text-slate-900 dark:text-white"/></button>
            <h2 className="font-bold text-lg text-slate-900 dark:text-white">Dependentes</h2>
         </div>
         <div className="p-4 space-y-4">
@@ -899,19 +811,19 @@ export default function App() {
      </div>
   );
 
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-slate-100 md:max-w-md md:mx-auto md:shadow-2xl md:border-x border-slate-200 dark:border-slate-800">
-      <div className="max-w-full overflow-y-auto h-screen bg-white dark:bg-slate-950">
-          {view === 'dashboard' && renderDashboard()}
-          {view === 'list' && renderList()}
-          {view === 'detail' && renderDetail()}
-          {view === 'scan' && renderScan()}
-          {view === 'review' && renderReview()}
-          {view === 'dependents' && renderDependentsPage()}
-          {view === 'settings' && renderSettings()}
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 md:max-w-md md:mx-auto md:border-x dark:border-slate-800">
+      <div className="max-w-full h-screen overflow-y-auto p-4">
+        {view === 'dashboard' && renderDashboard()}
+        {view === 'list' && renderList()}
+        {view === 'detail' && renderDetail()}
+        {view === 'scan' && renderScan()}
+        {view === 'review' && renderReview()}
+        {view === 'dependents' && renderDependentsPage()}
+        {view === 'settings' && renderSettings()}
       </div>
     </div>
   );
 }
+
 
