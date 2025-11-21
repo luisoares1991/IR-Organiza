@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, LogOut, LogIn, Save, Database, AlertCircle } from 'lucide-react';
+import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, Edit, ArrowLeft, LogOut, LogIn, Save, Database, AlertCircle, Share2 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO FIREBASE ---
@@ -145,11 +145,10 @@ export default function App() {
   useEffect(() => {
     const initAuth = async () => {
       try { 
-        // Pequeno delay para garantir que o Firebase inicializou
         setTimeout(async () => {
             if (!auth.currentUser) {
                 // Tenta login anônimo silencioso se não tiver usuário
-                await signInWithPopup(auth, googleProvider).catch(() => {}); 
+                await signInAnonymously(auth).catch(() => {}); 
             }
         }, 1000);
       } catch (e) { console.error(e); }
@@ -202,8 +201,8 @@ export default function App() {
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
-      // ALTERAÇÃO CRÍTICA: Usando modelo específico com versão '002' para evitar erro de "not found"
-      const model = "gemini-1.5-flash-002";
+      // VOLTANDO PARA O MODELO PADRÃO (Flash 1.5)
+      const model = "gemini-1.5-flash";
       
       const prompt = `Analise este documento (nota fiscal ou recibo). Retorne APENAS um JSON estrito com estes campos: { "razao_social": string, "cnpj_cpf": string_apenas_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde" ou "Educação" ou "Previdência" ou "Outros", "descricao": string_curta }. Se algum campo não for encontrado, use null.`;
       
@@ -481,7 +480,7 @@ export default function App() {
         </div>
         
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v1.5 - {user.uid.slice(0,6)}</div>
+        <div className="text-center text-xs text-slate-400">v1.6 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
@@ -507,4 +506,5 @@ export default function App() {
     </div>
   );
 }
+
 
