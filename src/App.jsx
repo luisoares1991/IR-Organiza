@@ -20,7 +20,7 @@ const db = getFirestore(app);
 const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 const googleProvider = new GoogleAuthProvider();
 
-// --- INDEXED DB (Imagens Locais) ---
+// --- INDEXED DB ---
 const DB_NAME = 'IROrganiza_Images';
 const STORE_NAME = 'receipt_files';
 
@@ -141,7 +141,7 @@ export default function App() {
     }
   }, [theme]);
 
-  // Auth
+  // Auth & Data Fetching
   useEffect(() => {
     const initAuth = async () => {
       try { 
@@ -169,7 +169,7 @@ export default function App() {
     return () => { unsubExp(); unsubDep(); };
   }, [user]);
 
-  // --- GEMINI (VERSÃO 2.5 FORÇADA) ---
+  // --- GEMINI (Lógica "Exército de Modelos") ---
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -189,10 +189,13 @@ export default function App() {
     
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
-    // AQUI: Tenta o 2.5 primeiro. Se falhar, vai pro 1.5-flash (backup de segurança)
+    // Tenta essa lista na ordem até um funcionar
     const modelsToTry = [
-        "gemini-2.5-flash-preview-09-2025", 
-        "gemini-1.5-flash" 
+        "gemini-2.5-flash-preview-09-2025", // O que você quer
+        "gemini-2.0-flash-exp",             // A versão experimental nova
+        "gemini-1.5-flash",                 // A versão estável padrão
+        "gemini-1.5-flash-latest",          // A versão mais recente
+        "gemini-pro"                        // A versão legada (segura)
     ];
     
     const prompt = `Analise documento. JSON estrito: { "razao_social": string, "cnpj_cpf": string_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde"|"Educação"|"Previdência"|"Outros", "descricao": string }`;
@@ -216,7 +219,7 @@ export default function App() {
 
             if (res.ok) {
                 data = await res.json();
-                break; // Sucesso com o modelo atual
+                break; // Funcionou! Sai do loop
             } else {
                 const err = await res.json();
                 lastError = `${model}: ${err.error?.message || res.status}`;
@@ -225,13 +228,12 @@ export default function App() {
         } catch (e) { lastError = e.message; }
       }
 
-      if (!data) throw new Error(`Falha na IA. Erros: ${lastError}`);
+      if (!data) throw new Error(`Falha em TODOS os modelos. Verifique se a 'Generative Language API' está ativada no Google Cloud.`);
       
-      // Tratamento extra para garantir que o JSON venha limpo
-      let jsonText = data.candidates[0].content.parts[0].text;
-      // Remove blocos de código markdown se a IA mandar
+      let jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!jsonText) throw new Error("IA não retornou texto.");
+      
       jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
-
       const result = JSON.parse(jsonText);
       
       setReviewData({ 
@@ -246,12 +248,12 @@ export default function App() {
 
     } catch (e) {
       console.error("Erro fatal:", e);
-      alert(`Erro na análise da IA: ${e.message}.\n\nPor favor, preencha manualmente.`);
+      alert(`Erro na análise: ${e.message}`);
       setReviewData({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
     } finally { setAnalyzing(false); }
   };
 
-  // CRUD
+  // CRUD Operations
   const handleSave = async () => {
     if (!reviewData.valor || !reviewData.razao_social) return alert("Preencha valor e prestador.");
     setLoading(true);
@@ -494,7 +496,7 @@ export default function App() {
         </div>
         
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v2.6 - {user.uid.slice(0,6)}</div>
+        <div className="text-center text-xs text-slate-400">v2.7 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
