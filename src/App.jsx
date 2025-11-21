@@ -20,7 +20,7 @@ const db = getFirestore(app);
 const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 const googleProvider = new GoogleAuthProvider();
 
-// --- INDEXED DB ---
+// --- INDEXED DB (Imagens Locais) ---
 const DB_NAME = 'IROrganiza_Images';
 const STORE_NAME = 'receipt_files';
 
@@ -169,7 +169,7 @@ export default function App() {
     return () => { unsubExp(); unsubDep(); };
   }, [user]);
 
-  // --- GEMINI (Lógica "Exército de Modelos") ---
+  // --- GEMINI (LISTA SIMPLIFICADA E ROBUSTA) ---
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -189,16 +189,13 @@ export default function App() {
     
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
-    // Tenta essa lista na ordem até um funcionar
+    // Lista de modelos "padrão ouro". Se esses não funcionarem, a API está desligada.
     const modelsToTry = [
-        "gemini-2.5-flash-preview-09-2025", // O que você quer
-        "gemini-2.0-flash-exp",             // A versão experimental nova
-        "gemini-1.5-flash",                 // A versão estável padrão
-        "gemini-1.5-flash-latest",          // A versão mais recente
-        "gemini-pro"                        // A versão legada (segura)
+        "gemini-1.5-flash", // O mais rápido e estável atual
+        "gemini-pro"        // O clássico (backup)
     ];
     
-    const prompt = `Analise documento. JSON estrito: { "razao_social": string, "cnpj_cpf": string_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde"|"Educação"|"Previdência"|"Outros", "descricao": string }`;
+    const prompt = `Analise este documento (nota fiscal ou recibo). Retorne APENAS um JSON estrito com estes campos: { "razao_social": string, "cnpj_cpf": string_apenas_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde" ou "Educação" ou "Previdência" ou "Outros", "descricao": string_curta }. Se algum campo não for encontrado, use null.`;
     const payload = {
         contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: base64.split(',')[1] } }] }],
         generationConfig: { responseMimeType: "application/json" }
@@ -219,19 +216,24 @@ export default function App() {
 
             if (res.ok) {
                 data = await res.json();
-                break; // Funcionou! Sai do loop
+                break; 
             } else {
                 const err = await res.json();
+                // Se o erro for 404 (Not Found), o modelo não existe pra essa chave. Tenta o próximo.
+                // Se for 403 (Permission), a API não está ativada.
                 lastError = `${model}: ${err.error?.message || res.status}`;
                 console.warn(`Falha no ${model}:`, lastError);
             }
         } catch (e) { lastError = e.message; }
       }
 
-      if (!data) throw new Error(`Falha em TODOS os modelos. Verifique se a 'Generative Language API' está ativada no Google Cloud.`);
+      if (!data) {
+          // Mensagem amigável se tudo falhar
+          throw new Error(`Falha ao conectar com a IA. Verifique se a "Generative Language API" está ativada no Google Cloud Console.`);
+      }
       
       let jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!jsonText) throw new Error("IA não retornou texto.");
+      if (!jsonText) throw new Error("IA não retornou texto legível.");
       
       jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
       const result = JSON.parse(jsonText);
@@ -248,7 +250,7 @@ export default function App() {
 
     } catch (e) {
       console.error("Erro fatal:", e);
-      alert(`Erro na análise: ${e.message}`);
+      alert(`Ops! ${e.message}\n\nPreencha os dados manualmente.`);
       setReviewData({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
     } finally { setAnalyzing(false); }
   };
@@ -496,7 +498,7 @@ export default function App() {
         </div>
         
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v2.7 - {user.uid.slice(0,6)}</div>
+        <div className="text-center text-xs text-slate-400">v2.8 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
