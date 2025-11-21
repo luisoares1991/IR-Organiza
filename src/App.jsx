@@ -1,14 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, Save, Database } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Camera, Upload, Check, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Calendar, Activity, GraduationCap, HelpCircle, FileType, Settings, UserPlus, Download, FileJson, AlertTriangle, Moon, Sun, Monitor, Filter, Save, Share2, HardDrive, Database, Heart, Coffee, ExternalLink, Github, Edit, ArrowLeft, LogOut } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged, signInAnonymously, signOut } from 'firebase/auth';
+import { getFirestore, collection, addDoc, query, onSnapshot, deleteDoc, doc, orderBy, Timestamp, getDocs, updateDoc } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO FIREBASE ---
-
-// ⚠️ MODO SEGURO (PARA SEU VS CODE / VERCEL)
-// Quando for usar no seu computador, DESCOMENTE este bloco e APAGUE o bloco de baixo.
-/*
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -17,26 +13,11 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
-const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-*/
-
-// ⚠️ MODO RÁPIDO (HARDCODED - APAGUE ESTE BLOCO AO USAR O .ENV)
-const firebaseConfig = {
-  apiKey: "AIzaSyB0ALAv5ixJuUSsBbz0CQMfNQIqKe9bZiM",
-  authDomain: "ir-app-71b88.firebaseapp.com",
-  projectId: "ir-app-71b88",
-  storageBucket: "ir-app-71b88.firebasestorage.app",
-  messagingSenderId: "981602959886",
-  appId: "1:981602959886:web:c23559c23308f2d018325f"
-};
-const appId = "ir-app-71b88";
-const GEMINI_KEY = "AIzaSyBGTNxmp0BjblNgx_enGojhG0HPUgGZvZ8";
-// -------------------------------------------------------
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
 // --- INDEXED DB (Imagens Locais) ---
 const DB_NAME = 'IROrganiza_Images';
@@ -81,25 +62,6 @@ const deleteImageLocally = async (id) => {
   } catch (e) { console.error(e); }
 };
 
-// --- HELPERS SEGUROS (Anti-Crash) ---
-const formatCurrency = (val) => {
-  const num = Number(val);
-  if (isNaN(num)) return 'R$ 0,00';
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
-};
-
-const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-        const str = String(dateString); 
-        if (str.includes('-')) {
-            const parts = str.split('-');
-            if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-        }
-        return str;
-    } catch (e) { return '-'; }
-}
-
 // --- COMPONENTES UI ---
 const Card = ({ children, className = "", onClick }) => (
   <div onClick={onClick} className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors ${className} ${onClick ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}`}>
@@ -133,13 +95,19 @@ const Badge = ({ category }) => {
     'Previdência': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
     'Outros': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
   };
-  const cat = typeof category === 'string' ? category : 'Outros';
   return (
-    <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 w-fit ${styles[cat] || styles['Outros']}`}>
-      {icons[cat] || icons['Outros']} {cat}
+    <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 w-fit ${styles[category] || styles['Outros']}`}>
+      {icons[category] || icons['Outros']} {category}
     </span>
   );
 };
+
+const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+const formatDate = (dateString) => {
+    if(!dateString) return '-';
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+}
 
 // --- MAIN APP ---
 export default function App() {
@@ -161,7 +129,7 @@ export default function App() {
   const [reviewData, setReviewData] = useState({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
   const [newDependentName, setNewDependentName] = useState('');
 
-  // Theme
+  // Theme Effect
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('dark');
@@ -171,18 +139,16 @@ export default function App() {
     }
   }, [theme]);
 
-  // Auth Listener (ANÔNIMO)
+  // Auth & Data Fetching
   useEffect(() => {
     const initAuth = async () => {
-       try { await signInAnonymously(auth); } 
-       catch (e) { console.error("Auth Error", e); }
+      try { await signInAnonymously(auth); } catch (e) { console.error(e); }
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
 
-  // Data Fetching
   useEffect(() => {
     if (!user) return;
     const unsubExp = onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), (snap) => {
@@ -194,7 +160,7 @@ export default function App() {
     return () => { unsubExp(); unsubDep(); };
   }, [user]);
 
-  // Gemini Analysis
+  // Operations
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -212,9 +178,8 @@ export default function App() {
     setEditingId(null);
     setView('review');
     try {
-      const apiKey = GEMINI_KEY;
-      const prompt = `Analise documento (nota fiscal/recibo). JSON estrito: { "razao_social": string, "cnpj_cpf": string_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde"|"Educação"|"Previdência"|"Outros", "descricao": string }`;
-      
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      const prompt = `Analise documento. JSON estrito: { "razao_social": string, "cnpj_cpf": string_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde"|"Educação"|"Previdência"|"Outros", "descricao": string }`;
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -223,27 +188,15 @@ export default function App() {
           generationConfig: { responseMimeType: "application/json" }
         })
       });
-      
       const data = await res.json();
       const result = JSON.parse(data.candidates[0].content.parts[0].text);
-      
-      setReviewData({
-        ...result,
-        valor: result.valor || '',
-        data: result.data || new Date().toISOString().split('T')[0],
-        categoria: result.categoria || 'Outros',
-        dependente: 'Titular',
-        razao_social: result.razao_social || 'Não identificado',
-        descricao: result.descricao || ''
-      });
+      setReviewData({ ...result, valor: result.valor||'', data: result.data||new Date().toISOString().split('T')[0], categoria: result.categoria||'Outros', dependente: 'Titular', razao_social: result.razao_social||'Não id.', descricao: result.descricao||'' });
     } catch (e) {
-      console.error(e);
       alert("Erro na análise. Preencha manualmente.");
       setReviewData({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
     } finally { setAnalyzing(false); }
   };
 
-  // CRUD Operations
   const handleSave = async () => {
     if (!reviewData.valor || !reviewData.razao_social) return alert("Preencha valor e prestador.");
     setLoading(true);
@@ -255,7 +208,6 @@ export default function App() {
         hasAttachment: !!scannedFile || (editingId ? (selectedExpense?.hasAttachment || false) : false),
         mimeType: scannedFileType || (editingId ? (selectedExpense?.mimeType || '') : '')
       };
-
       let id = editingId;
       if (id) {
         await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'expenses', id), payload);
@@ -263,23 +215,31 @@ export default function App() {
         const ref = await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), payload);
         id = ref.id;
       }
-      
       if (scannedFile && id) await saveImageLocally(id, scannedFile);
-      
       setView('dashboard');
       setScannedFile(null);
       setEditingId(null);
-    } catch (e) { console.error(e); alert("Erro ao salvar."); }
+    } catch (e) { alert("Erro ao salvar."); }
     finally { setLoading(false); }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Excluir despesa?")) return;
+    if (!confirm("Excluir?")) return;
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'expenses', id));
       await deleteImageLocally(id);
       if (selectedExpense?.id === id) setView('list');
     } catch (e) { console.error(e); }
+  };
+
+  const handleViewExpense = async (exp) => {
+    setSelectedExpense(exp);
+    setSelectedExpenseImage(null);
+    setView('detail');
+    if (exp.hasAttachment) {
+      const img = await getImageLocally(exp.id);
+      setSelectedExpenseImage(img);
+    }
   };
 
   const handleEditStart = async (exp) => {
@@ -297,25 +257,12 @@ export default function App() {
     setNewDependentName('');
   };
 
-  const handleViewDetail = async (exp) => {
-    if(!exp) return;
-    setSelectedExpense(exp);
-    setSelectedExpenseImage(null);
-    setView('detail');
-    if (exp.hasAttachment) {
-      const img = await getImageLocally(exp.id);
-      setSelectedExpenseImage(img);
-    }
-  };
-
-  const handleShareOrDownload = async () => {
+  const handleShare = async () => {
     if (!selectedExpense || !selectedExpenseImage) return;
     const fetchRes = await fetch(selectedExpenseImage);
     const blob = await fetchRes.blob();
     const file = new File([blob], `recibo.jpg`, { type: blob.type });
-    if (navigator.share) {
-      try { await navigator.share({ title: 'Recibo', files: [file] }); return; } catch {}
-    }
+    if (navigator.share) { try { await navigator.share({ title: 'Recibo', files: [file] }); return; } catch {} }
     const link = document.createElement('a');
     link.href = selectedExpenseImage;
     link.download = `recibo.jpg`;
@@ -329,33 +276,32 @@ export default function App() {
     const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `backup_ir_${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `backup_ir.json`;
     link.click();
   };
 
   const handleImport = async (e) => {
     const file = e.target.files[0];
-    if (!file || !confirm("Importar dados? Isso vai adicionar ao seu histórico atual.")) return;
+    if (!file || !confirm("Importar?")) return;
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
         for (const d of data.dependents) await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'dependents'), d);
         for (const x of data.expenses) await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), x);
-        alert("Importado com sucesso!");
+        alert("Importado!");
         setView('dashboard');
-      } catch { alert("Erro na importação. Verifique o arquivo."); }
+      } catch { alert("Erro."); }
     };
     reader.readAsText(file);
   };
 
-  // --- TELAS ---
+  // --- RENDER ---
   if (!user) return <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
 
   const renderDashboard = () => {
     const total = expenses.reduce((acc, cur) => acc + (cur.valor || 0), 0);
     const byCat = expenses.reduce((acc, cur) => { acc[cur.categoria] = (acc[cur.categoria] || 0) + cur.valor; return acc; }, {});
-    
     return (
       <div className="space-y-6 pb-24">
         <div className="flex justify-between items-center">
@@ -384,7 +330,6 @@ export default function App() {
     if (years.length === 0) years.push(new Date().getFullYear());
     const targetYear = filterYear || years[0].toString();
     const filtered = expenses.filter(e => new Date(e.data).getFullYear().toString() === targetYear);
-
     return (
       <div className="pb-24 space-y-6">
         <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-slate-950 z-10 py-4 border-b dark:border-slate-800">
@@ -396,8 +341,8 @@ export default function App() {
         </div>
         <div className="space-y-3">
            {filtered.map(e => (
-             <Card key={e.id} className="p-4 flex justify-between items-center" onClick={() => handleViewDetail(e)}>
-                <div><div className="font-semibold text-slate-900 dark:text-white">{String(e.razao_social)}</div><div className="text-xs text-slate-500">{formatDate(e.data)} • {String(e.categoria)}</div></div>
+             <Card key={e.id} className="p-4 flex justify-between items-center" onClick={() => handleViewExpense(e)}>
+                <div><div className="font-semibold text-slate-900 dark:text-white">{e.razao_social}</div><div className="text-xs text-slate-500">{formatDate(e.data)} • {e.categoria}</div></div>
                 <div className="font-bold text-slate-900 dark:text-white">{formatCurrency(e.valor)}</div>
              </Card>
            ))}
@@ -412,26 +357,20 @@ export default function App() {
           <button onClick={()=>setView(editingId ? 'detail' : 'dashboard')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><X className="text-slate-900 dark:text-white"/></button>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">{editingId ? 'Editar' : 'Revisar'}</h2>
        </div>
-       {analyzing ? <div className="text-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div><p className="text-slate-500">Analisando com IA...</p></div> : (
+       {analyzing ? <div className="text-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div><p className="text-slate-500">Analisando...</p></div> : (
          <div className="space-y-4">
             {scannedFile && <div className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center border dark:border-slate-700">{scannedFileType==='application/pdf'?<span className="flex gap-2 items-center text-slate-500"><FileType/> PDF</span>:<img src={scannedFile} className="h-full object-contain"/>}</div>}
-            
             <div><label className="text-sm text-slate-500 mb-1 block">Categoria</label><div className="flex gap-2 overflow-x-auto pb-2">{['Saúde','Educação','Previdência','Outros'].map(c=><button key={c} onClick={()=>setReviewData({...reviewData, categoria:c})} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${reviewData.categoria===c?'bg-blue-600 text-white':'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>{c}</button>)}</div></div>
-            
             <div className="grid grid-cols-2 gap-4">
               <div><label className="text-sm text-slate-500 block mb-1">Valor</label><input type="number" value={reviewData.valor} onChange={e=>setReviewData({...reviewData, valor:e.target.value})} className="w-full p-3 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-blue-500"/></div>
               <div><label className="text-sm text-slate-500 block mb-1">Data</label><input type="date" value={reviewData.data} onChange={e=>setReviewData({...reviewData, data:e.target.value})} className="w-full p-3 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-blue-500"/></div>
             </div>
-
             <div><label className="text-sm text-slate-500 block mb-1">Prestador</label><input type="text" value={reviewData.razao_social} onChange={e=>setReviewData({...reviewData, razao_social:e.target.value})} className="w-full p-3 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-blue-500"/></div>
-
             <div className="grid grid-cols-2 gap-4">
                <div><label className="text-sm text-slate-500 block mb-1">CNPJ</label><input type="text" value={reviewData.cnpj_cpf} onChange={e=>setReviewData({...reviewData, cnpj_cpf:e.target.value})} className="w-full p-3 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-blue-500"/></div>
                <div><label className="text-sm text-slate-500 block mb-1">Dependente</label><select value={reviewData.dependente} onChange={e=>setReviewData({...reviewData, dependente:e.target.value})} className="w-full p-3 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-blue-500"><option value="Titular">Titular</option>{dependents.map(d=><option key={d.id} value={d.name}>{d.name}</option>)}</select></div>
             </div>
-
             <div><label className="text-sm text-slate-500 block mb-1">Descrição</label><input type="text" value={reviewData.descricao} onChange={e=>setReviewData({...reviewData, descricao:e.target.value})} className="w-full p-3 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-blue-500"/></div>
-
             <Button onClick={handleSave} disabled={loading} className="w-full">{loading ? 'Salvando...' : 'Confirmar'}</Button>
          </div>
        )}
@@ -439,50 +378,24 @@ export default function App() {
   );
 
   const renderDetail = () => {
-    // PROTEÇÃO CONTRA TELA BRANCA
     if(!selectedExpense) return null;
-
     return (
       <div className="pb-24 space-y-6">
         <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-slate-950 z-10 py-4 border-b dark:border-slate-800">
-          <div className="flex gap-3 items-center"><button onClick={()=>setView('list')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft className="text-slate-900 dark:text-white"/></button><h2 className="text-lg font-bold text-slate-900 dark:text-white">Detalhes</h2></div>
-          <button onClick={() => handleEditStart(selectedExpense)} className="flex items-center gap-1 text-blue-600 text-sm font-medium bg-blue-50 px-3 py-1.5 rounded-lg"><Edit size={16}/> Editar</button>
+           <div className="flex gap-3 items-center"><button onClick={()=>setView('list')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ArrowLeft className="text-slate-900 dark:text-white"/></button><h2 className="text-lg font-bold text-slate-900 dark:text-white">Detalhes</h2></div>
+           <button onClick={() => handleEditStart(selectedExpense)} className="flex items-center gap-1 text-blue-600 text-sm font-medium bg-blue-50 px-3 py-1.5 rounded-lg"><Edit size={16}/> Editar</button>
         </div>
         {selectedExpenseImage && (
-          <div className="rounded-xl overflow-hidden border dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[150px]">
+           <div className="rounded-xl overflow-hidden border dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center min-h-[150px]">
               {selectedExpense.mimeType === 'application/pdf' ? <div className="text-center text-slate-500"><FileType size={48} className="mx-auto mb-2 text-red-500"/>PDF Salvo</div> : <img src={selectedExpenseImage} className="w-full h-auto"/>}
-          </div>
+           </div>
         )}
-        {selectedExpenseImage && <Button onClick={handleShareOrDownload} className="w-full"><Share2 size={18}/> Compartilhar</Button>}
-        
+        {selectedExpenseImage && <Button onClick={handleShare} className="w-full"><Share2 size={18}/> Compartilhar</Button>}
         <Card className="p-5 space-y-4">
-          <div>
-              <label className="text-xs text-slate-500 font-bold uppercase">Prestador</label>
-              <div className="text-lg font-semibold text-slate-900 dark:text-white">{String(selectedExpense.razao_social || 'Sem nome')}</div>
-              <div className="text-sm text-slate-500">{String(selectedExpense.cnpj_cpf || '-')}</div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-              <div>
-                  <label className="text-xs text-slate-500 font-bold uppercase">Valor</label>
-                  <div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedExpense.valor)}</div>
-              </div>
-              <div>
-                  <label className="text-xs text-slate-500 font-bold uppercase">Data</label>
-                  <div className="text-lg text-slate-900 dark:text-white">{formatDate(selectedExpense.data)}</div>
-              </div>
-          </div>
-          <div className="flex gap-2 pt-2 border-t dark:border-slate-700">
-              <Badge category={selectedExpense.categoria}/>
-              <span className="px-2 py-1 rounded text-xs border dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-1">
-                  <Users size={12}/> {String(selectedExpense.dependente || 'Titular')}
-              </span>
-          </div>
-          {selectedExpense.descricao && (
-              <div>
-                  <label className="text-xs text-slate-500 font-bold uppercase">Descrição</label>
-                  <div className="text-slate-900 dark:text-white">{String(selectedExpense.descricao)}</div>
-              </div>
-          )}
+           <div><label className="text-xs text-slate-500 font-bold uppercase">Prestador</label><div className="text-lg font-semibold text-slate-900 dark:text-white">{selectedExpense.razao_social}</div><div className="text-sm text-slate-500">{selectedExpense.cnpj_cpf}</div></div>
+           <div className="grid grid-cols-2 gap-4"><div><label className="text-xs text-slate-500 font-bold uppercase">Valor</label><div className="text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(selectedExpense.valor)}</div></div><div><label className="text-xs text-slate-500 font-bold uppercase">Data</label><div className="text-lg text-slate-900 dark:text-white">{formatDate(selectedExpense.data)}</div></div></div>
+           <div className="flex gap-2 pt-2 border-t dark:border-slate-700"><Badge category={selectedExpense.categoria}/><span className="px-2 py-1 rounded text-xs border dark:border-slate-700 text-slate-600 dark:text-slate-400 flex items-center gap-1"><Users size={12}/> {selectedExpense.dependente}</span></div>
+           {selectedExpense.descricao && <div><label className="text-xs text-slate-500 font-bold uppercase">Descrição</label><div className="text-slate-900 dark:text-white">{selectedExpense.descricao}</div></div>}
         </Card>
         <Button onClick={()=>handleDelete(selectedExpense.id)} variant="danger" className="w-full"><Trash2 size={20}/> Excluir</Button>
       </div>
@@ -495,47 +408,22 @@ export default function App() {
            <button onClick={()=>setView('dashboard')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronRight className="rotate-180 text-slate-900 dark:text-white"/></button>
            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Configurações</h2>
         </div>
-        
         <div className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-slate-900 rounded-xl">
-           {user.isAnonymous ? (
-             <div className="bg-slate-200 p-2 rounded-full"><Users size={24}/></div>
-           ) : (
-             user.photoURL && <img src={user.photoURL} className="w-12 h-12 rounded-full" />
-           )}
-           <div>
-             <div className="font-bold text-slate-900 dark:text-white">{user.isAnonymous ? 'Anônimo' : user.displayName}</div>
-             <div className="text-xs text-slate-500">ID: {user.uid.slice(0,8)}...</div>
-           </div>
+           <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">{user.uid.slice(0,2).toUpperCase()}</div>
+           <div><div className="font-bold text-slate-900 dark:text-white">Anônimo</div><div className="text-xs text-slate-500">ID: {user.uid.slice(0,8)}</div></div>
         </div>
-
-        <div>
-           <h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Aparência</h3>
-           <div className="grid grid-cols-3 gap-2">{['light','dark','system'].map(m=><button key={m} onClick={()=>setTheme(m)} className={`p-3 rounded-xl border-2 flex flex-col items-center ${theme===m?'border-blue-600 bg-blue-50 text-blue-600':'border-slate-200 dark:border-slate-700 dark:text-white'}`}><span className="capitalize text-xs">{m}</span></button>)}</div>
-        </div>
+        <div><h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Aparência</h3><div className="grid grid-cols-3 gap-2">{['light','dark','system'].map(m=><button key={m} onClick={()=>setTheme(m)} className={`p-3 rounded-xl border-2 flex flex-col items-center ${theme===m?'border-blue-600 bg-blue-50 text-blue-600':'border-slate-200 dark:border-slate-700 dark:text-white'}`}><span className="capitalize text-xs">{m}</span></button>)}</div></div>
         
         <Card className="bg-gradient-to-br from-pink-500 to-rose-600 text-white border-none p-5">
            <div className="flex gap-2 items-center mb-2 font-bold"><Heart className="animate-pulse"/> Apoie o Projeto</div>
            <p className="text-sm opacity-90 mb-4">App 100% gratuito e open source.</p>
            <a href="https://tipa.ai/agilizei" target="_blank" className="bg-white text-rose-600 py-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-lg active:scale-95"><Coffee size={20}/> Me pague um café</a>
         </Card>
-        
-        <div className="space-y-4 border-t dark:border-slate-800 pt-4">
-          <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center justify-between text-slate-700 dark:text-white font-bold hover:bg-slate-50 dark:hover:bg-slate-900">
-              <span className="flex items-center gap-3"><Download size={20}/> Backup de Dados (Exportar)</span>
-              <ChevronRight size={16} className="opacity-50"/>
-          </button>
-          
-          <label className="w-full p-4 rounded-xl border-2 border-blue-600 bg-blue-50 dark:bg-blue-900/10 border-dashed flex items-center gap-3 text-blue-700 dark:text-blue-400 font-bold cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors">
-              <Upload/> 
-              <div className="text-left">
-                  <div>Restaurar Backup (Importar)</div>
-                  <div className="text-xs font-normal opacity-80">Selecione o arquivo .json</div>
-              </div>
-              <input type="file" onChange={handleImport} accept=".json" className="hidden"/>
-          </label>
-        </div>
 
-        <div className="text-center text-xs text-slate-400">v1.6 - Restaurado</div>
+        <div className="space-y-3">
+          <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center gap-3 text-slate-700 dark:text-white font-bold hover:bg-slate-50 dark:hover:bg-slate-900"><Download/> Backup de Dados</button>
+          <label className="w-full p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center gap-3 text-slate-700 dark:text-white font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"><Upload className="text-slate-400"/> <div className="text-left"><div>Restaurar Backup</div><div className="text-xs text-slate-400 font-normal">Selecione o arquivo .json</div></div><input type="file" onChange={handleImport} accept=".json" className="hidden"/></label>
+        </div>
      </div>
   );
 
@@ -561,3 +449,5 @@ export default function App() {
     </div>
   );
 }
+
+
