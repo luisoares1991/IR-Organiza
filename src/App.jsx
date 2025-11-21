@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, Edit, ArrowLeft, LogOut, LogIn, Save, Database, Share2 } from 'lucide-react';
+import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, Edit, ArrowLeft, LogOut, LogIn, Save, Database, AlertCircle, Share2 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, signInAnonymously } from 'firebase/auth';
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
@@ -131,7 +131,7 @@ export default function App() {
   const [reviewData, setReviewData] = useState({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
   const [newDependentName, setNewDependentName] = useState('');
 
-  // Theme
+  // Theme Effect
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove('dark');
@@ -141,7 +141,7 @@ export default function App() {
     }
   }, [theme]);
 
-  // Auth
+  // Auth & Data Fetching
   useEffect(() => {
     const initAuth = async () => {
       try { 
@@ -158,7 +158,6 @@ export default function App() {
   const handleLogin = async () => { try { await signInWithPopup(auth, googleProvider); } catch (e) { alert(e.message); } };
   const handleLogout = async () => { if(confirm("Sair?")) await signOut(auth); };
 
-  // Data
   useEffect(() => {
     if (!user) return;
     const unsubExp = onSnapshot(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), (snap) => {
@@ -170,7 +169,7 @@ export default function App() {
     return () => { unsubExp(); unsubDep(); };
   }, [user]);
 
-  // --- GEMINI (Lógica de Fallback Robusta) ---
+  // Operations
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -189,8 +188,14 @@ export default function App() {
     setView('review');
     
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    // Lista de modelos para tentar em ordem, caso o primeiro falhe
-    const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-flash-001", "gemini-1.5-flash-latest"];
+    
+    // --- AQUI ESTÁ A MÁGICA RESTAURADA ---
+    // Prioridade total para o 2.5 que funcionou antes
+    const modelsToTry = [
+        "gemini-2.5-flash-preview-09-2025", // O seu favorito
+        "gemini-1.5-flash",                 // Fallback se o 2.5 cair
+        "gemini-1.5-pro"                    // Última tentativa
+    ];
     
     const prompt = `Analise documento. JSON estrito: { "razao_social": string, "cnpj_cpf": string_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde"|"Educação"|"Previdência"|"Outros", "descricao": string }`;
     const payload = {
@@ -202,7 +207,6 @@ export default function App() {
       let data = null;
       let lastError = null;
 
-      // Tenta os modelos um por um
       for (const model of modelsToTry) {
         try {
             console.log(`Tentando modelo: ${model}`);
@@ -214,18 +218,16 @@ export default function App() {
 
             if (res.ok) {
                 data = await res.json();
-                break; // Sucesso! Sai do loop
+                break; // Funcionou!
             } else {
                 const err = await res.json();
                 lastError = err.error?.message || `Erro ${res.status}`;
-                console.warn(`Falha no modelo ${model}:`, lastError);
+                console.warn(`Falha no ${model}:`, lastError);
             }
-        } catch (e) {
-            lastError = e.message;
-        }
+        } catch (e) { lastError = e.message; }
       }
 
-      if (!data) throw new Error(`Falha em todos os modelos. Último erro: ${lastError}`);
+      if (!data) throw new Error(lastError || "Falha na IA");
       
       const result = JSON.parse(data.candidates[0].content.parts[0].text);
       setReviewData({ 
@@ -239,13 +241,12 @@ export default function App() {
       });
 
     } catch (e) {
-      console.error("Erro fatal na análise:", e);
-      alert(`Erro na análise da IA. Por favor, preencha manualmente.\nDetalhe: ${e.message}`);
+      console.error("Erro fatal:", e);
+      alert(`Erro na análise da IA. Por favor, preencha manualmente.`);
       setReviewData({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
     } finally { setAnalyzing(false); }
   };
 
-  // CRUD
   const handleSave = async () => {
     if (!reviewData.valor || !reviewData.razao_social) return alert("Preencha valor e prestador.");
     setLoading(true);
@@ -351,9 +352,11 @@ export default function App() {
   if (!user) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-6 text-center">
-        <div className="bg-blue-600 p-4 rounded-2xl mb-6 shadow-xl shadow-blue-200 dark:shadow-none"><FileText size={48} className="text-white" /></div>
+        <div className="bg-blue-600 p-4 rounded-2xl mb-6 shadow-xl shadow-blue-200 dark:shadow-none">
+           <FileText size={48} className="text-white" />
+        </div>
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">IR Organiza</h1>
-        <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">Seu assistente inteligente.</p>
+        <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">Seu assistente inteligente para organizar recibos e declarações.</p>
         <Button onClick={handleLogin} className="w-full max-w-xs py-4 text-lg shadow-xl"><LogIn size={24} /> Entrar com Google</Button>
       </div>
     );
@@ -486,23 +489,7 @@ export default function App() {
         </div>
         
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v1.7 - {user.uid.slice(0,6)}</div>
-     </div>
-  );
-
-  const renderDependentsPage = () => (
-     <div className="pb-24">
-        <div className="sticky top-0 bg-white dark:bg-slate-950 z-10 p-4 border-b dark:border-slate-800 flex items-center gap-3">
-           <button onClick={() => setView('dashboard')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><ChevronRight size={20} className="rotate-180 text-slate-900 dark:text-white"/></button>
-           <h2 className="font-bold text-lg text-slate-900 dark:text-white">Dependentes</h2>
-        </div>
-        <div className="p-4 space-y-4">
-           <div className="flex gap-2"><input type="text" value={newDependentName} onChange={e => setNewDependentName(e.target.value)} placeholder="Nome" className="flex-1 p-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"/><button onClick={handleAddDependent} className="bg-blue-600 text-white px-4 rounded-lg">Add</button></div>
-           <div className="space-y-2">
-               <div className="p-3 bg-white dark:bg-slate-800 rounded border dark:border-slate-700 dark:text-white flex justify-between"><span>Titular</span> <span className="text-xs bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded">Padrão</span></div>
-               {dependents.map(d => <div key={d.id} className="p-3 bg-white dark:bg-slate-800 rounded border dark:border-slate-700 dark:text-white flex justify-between"><span>{d.name}</span> <button onClick={() => handleDelete(d.id)} className="text-red-500"><Trash2 size={16}/></button></div>)}
-            </div>
-        </div>
+        <div className="text-center text-xs text-slate-400">v2.5 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
