@@ -141,7 +141,7 @@ export default function App() {
     }
   }, [theme]);
 
-  // Auth & Data Fetching
+  // Auth
   useEffect(() => {
     const initAuth = async () => {
       try { 
@@ -169,7 +169,7 @@ export default function App() {
     return () => { unsubExp(); unsubDep(); };
   }, [user]);
 
-  // Operations
+  // --- GEMINI (VERSÃO 2.5 FORÇADA) ---
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -189,12 +189,10 @@ export default function App() {
     
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
-    // --- AQUI ESTÁ A MÁGICA RESTAURADA ---
-    // Prioridade total para o 2.5 que funcionou antes
+    // AQUI: Tenta o 2.5 primeiro. Se falhar, vai pro 1.5-flash (backup de segurança)
     const modelsToTry = [
-        "gemini-2.5-flash-preview-09-2025", // O seu favorito
-        "gemini-1.5-flash",                 // Fallback se o 2.5 cair
-        "gemini-1.5-pro"                    // Última tentativa
+        "gemini-2.5-flash-preview-09-2025", 
+        "gemini-1.5-flash" 
     ];
     
     const prompt = `Analise documento. JSON estrito: { "razao_social": string, "cnpj_cpf": string_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde"|"Educação"|"Previdência"|"Outros", "descricao": string }`;
@@ -218,18 +216,24 @@ export default function App() {
 
             if (res.ok) {
                 data = await res.json();
-                break; // Funcionou!
+                break; // Sucesso com o modelo atual
             } else {
                 const err = await res.json();
-                lastError = err.error?.message || `Erro ${res.status}`;
+                lastError = `${model}: ${err.error?.message || res.status}`;
                 console.warn(`Falha no ${model}:`, lastError);
             }
         } catch (e) { lastError = e.message; }
       }
 
-      if (!data) throw new Error(lastError || "Falha na IA");
+      if (!data) throw new Error(`Falha na IA. Erros: ${lastError}`);
       
-      const result = JSON.parse(data.candidates[0].content.parts[0].text);
+      // Tratamento extra para garantir que o JSON venha limpo
+      let jsonText = data.candidates[0].content.parts[0].text;
+      // Remove blocos de código markdown se a IA mandar
+      jsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+      const result = JSON.parse(jsonText);
+      
       setReviewData({ 
           ...result, 
           valor: result.valor||'', 
@@ -242,11 +246,12 @@ export default function App() {
 
     } catch (e) {
       console.error("Erro fatal:", e);
-      alert(`Erro na análise da IA. Por favor, preencha manualmente.`);
+      alert(`Erro na análise da IA: ${e.message}.\n\nPor favor, preencha manualmente.`);
       setReviewData({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
     } finally { setAnalyzing(false); }
   };
 
+  // CRUD
   const handleSave = async () => {
     if (!reviewData.valor || !reviewData.razao_social) return alert("Preencha valor e prestador.");
     setLoading(true);
@@ -489,7 +494,7 @@ export default function App() {
         </div>
         
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v2.5 - {user.uid.slice(0,6)}</div>
+        <div className="text-center text-xs text-slate-400">v2.6 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
