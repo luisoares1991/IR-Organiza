@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Upload, Check, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Calendar, Activity, GraduationCap, HelpCircle, FileType, Settings, UserPlus, Download, FileJson, AlertTriangle, Moon, Sun, Monitor, Filter, Save, Share2, HardDrive, Database, Heart, Coffee, ExternalLink, Github, Edit, ArrowLeft, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, LogOut, LogIn, Save, Database, AlertCircle } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInAnonymously, signOut } from 'firebase/auth';
-import { getFirestore, collection, addDoc, query, onSnapshot, deleteDoc, doc, orderBy, Timestamp, getDocs, updateDoc } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO FIREBASE ---
 const firebaseConfig = {
@@ -18,6 +18,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+const googleProvider = new GoogleAuthProvider();
 
 // --- INDEXED DB (Imagens Locais) ---
 const DB_NAME = 'IROrganiza_Images';
@@ -112,6 +113,7 @@ const formatDate = (dateString) => {
 // --- MAIN APP ---
 export default function App() {
   const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState('dashboard');
   const [expenses, setExpenses] = useState([]);
   const [dependents, setDependents] = useState([]);
@@ -142,12 +144,30 @@ export default function App() {
   // Auth & Data Fetching
   useEffect(() => {
     const initAuth = async () => {
-      try { await signInAnonymously(auth); } catch (e) { console.error(e); }
+      // Tenta logar anonimamente se não tiver sessão (para uso imediato)
+      try { 
+        // Pequeno delay para evitar conflito se o listener de auth já estiver disparando
+        setTimeout(async () => {
+            if (!auth.currentUser) await signInAnonymously(auth); 
+        }, 1000);
+      } catch (e) { console.error(e); }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
     return () => unsubscribe();
   }, []);
+
+  const handleLogin = async () => {
+    try { await signInWithPopup(auth, googleProvider); } 
+    catch (error) { alert("Erro no login: " + error.message); }
+  };
+
+  const handleLogout = async () => {
+    if(confirm("Deseja realmente sair?")) await signOut(auth);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -179,8 +199,13 @@ export default function App() {
     setView('review');
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      const prompt = `Analise documento. JSON estrito: { "razao_social": string, "cnpj_cpf": string_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde"|"Educação"|"Previdência"|"Outros", "descricao": string }`;
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      
+      // ALTERAÇÃO: Usando modelo estável 'gemini-1.5-flash' em vez do preview
+      const model = "gemini-1.5-flash";
+      
+      const prompt = `Analise este documento (nota fiscal ou recibo). Retorne APENAS um JSON estrito com estes campos: { "razao_social": string, "cnpj_cpf": string_apenas_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde" ou "Educação" ou "Previdência" ou "Outros", "descricao": string_curta }. Se algum campo não for encontrado, use null.`;
+      
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -188,11 +213,33 @@ export default function App() {
           generationConfig: { responseMimeType: "application/json" }
         })
       });
+      
+      // Tratamento de erro detalhado da API
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error?.message || `Erro ${res.status}`);
+      }
+
       const data = await res.json();
+      
+      if (!data.candidates || !data.candidates[0]?.content) {
+         throw new Error("A IA não retornou dados legíveis.");
+      }
+
       const result = JSON.parse(data.candidates[0].content.parts[0].text);
-      setReviewData({ ...result, valor: result.valor||'', data: result.data||new Date().toISOString().split('T')[0], categoria: result.categoria||'Outros', dependente: 'Titular', razao_social: result.razao_social||'Não id.', descricao: result.descricao||'' });
+      
+      setReviewData({
+        ...result,
+        valor: result.valor || '',
+        data: result.data || new Date().toISOString().split('T')[0],
+        categoria: result.categoria || 'Outros',
+        dependente: 'Titular',
+        razao_social: result.razao_social || 'Não identificado',
+        descricao: result.descricao || ''
+      });
     } catch (e) {
-      alert("Erro na análise. Preencha manualmente.");
+      console.error("Erro na Análise:", e);
+      alert(`Erro na análise: ${e.message}`); // Mostra o erro real para o usuário
       setReviewData({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
     } finally { setAnalyzing(false); }
   };
@@ -219,7 +266,7 @@ export default function App() {
       setView('dashboard');
       setScannedFile(null);
       setEditingId(null);
-    } catch (e) { alert("Erro ao salvar."); }
+    } catch (e) { alert("Erro ao salvar: " + e.message); }
     finally { setLoading(false); }
   };
 
@@ -297,7 +344,23 @@ export default function App() {
   };
 
   // --- RENDER ---
-  if (!user) return <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+  if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+
+  // Se não tiver user, mostra tela de login simples
+  if (!user) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-6 text-center">
+            <div className="bg-blue-600 p-4 rounded-2xl mb-6 shadow-xl shadow-blue-200 dark:shadow-none">
+                <FileText size={48} className="text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">IR Organiza</h1>
+            <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">Seu assistente inteligente.</p>
+            <Button onClick={handleLogin} className="w-full max-w-xs py-4 text-lg shadow-xl"><LogIn size={24} /> Entrar com Google</Button>
+            {/* Botão de login anônimo de fallback caso o Google falhe */}
+            <button onClick={() => signInAnonymously(auth)} className="mt-4 text-slate-400 text-xs underline">Entrar sem conta (Dados temporários)</button>
+        </div>
+      );
+  }
 
   const renderDashboard = () => {
     const total = expenses.reduce((acc, cur) => acc + (cur.valor || 0), 0);
@@ -305,7 +368,7 @@ export default function App() {
     return (
       <div className="space-y-6 pb-24">
         <div className="flex justify-between items-center">
-          <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">IR Organiza</h1><p className="text-slate-500 text-sm">Suas despesas</p></div>
+          <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">Olá, {user.displayName?.split(' ')[0] || 'Visitante'}</h1><p className="text-slate-500 text-sm">Suas despesas</p></div>
           <button onClick={() => setView('settings')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"><Settings/></button>
         </div>
         <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-6 border-none">
@@ -357,7 +420,7 @@ export default function App() {
           <button onClick={()=>setView(editingId ? 'detail' : 'dashboard')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><X className="text-slate-900 dark:text-white"/></button>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">{editingId ? 'Editar' : 'Revisar'}</h2>
        </div>
-       {analyzing ? <div className="text-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div><p className="text-slate-500">Analisando...</p></div> : (
+       {analyzing ? <div className="text-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div><p className="text-slate-500">Analisando com IA...</p></div> : (
          <div className="space-y-4">
             {scannedFile && <div className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center border dark:border-slate-700">{scannedFileType==='application/pdf'?<span className="flex gap-2 items-center text-slate-500"><FileType/> PDF</span>:<img src={scannedFile} className="h-full object-contain"/>}</div>}
             <div><label className="text-sm text-slate-500 mb-1 block">Categoria</label><div className="flex gap-2 overflow-x-auto pb-2">{['Saúde','Educação','Previdência','Outros'].map(c=><button key={c} onClick={()=>setReviewData({...reviewData, categoria:c})} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${reviewData.categoria===c?'bg-blue-600 text-white':'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>{c}</button>)}</div></div>
@@ -409,9 +472,12 @@ export default function App() {
            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Configurações</h2>
         </div>
         <div className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-slate-900 rounded-xl">
-           <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">{user.uid.slice(0,2).toUpperCase()}</div>
-           <div><div className="font-bold text-slate-900 dark:text-white">Anônimo</div><div className="text-xs text-slate-500">ID: {user.uid.slice(0,8)}</div></div>
+           <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">{user.displayName?.[0] || user.uid.slice(0,2).toUpperCase()}</div>
+           <div><div className="font-bold text-slate-900 dark:text-white">{user.isAnonymous ? 'Visitante (Não salvo)' : user.displayName}</div><div className="text-xs text-slate-500">{user.email || 'Login Anônimo'}</div></div>
         </div>
+        
+        {user.isAnonymous && <div className="bg-yellow-50 text-yellow-800 p-3 rounded-lg text-sm flex gap-2 items-center"><AlertCircle size={16}/> Seus dados são temporários. Faça login para não perder.</div>}
+
         <div><h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Aparência</h3><div className="grid grid-cols-3 gap-2">{['light','dark','system'].map(m=><button key={m} onClick={()=>setTheme(m)} className={`p-3 rounded-xl border-2 flex flex-col items-center ${theme===m?'border-blue-600 bg-blue-50 text-blue-600':'border-slate-200 dark:border-slate-700 dark:text-white'}`}><span className="capitalize text-xs">{m}</span></button>)}</div></div>
         
         <Card className="bg-gradient-to-br from-pink-500 to-rose-600 text-white border-none p-5">
@@ -424,6 +490,9 @@ export default function App() {
           <button onClick={handleExport} className="w-full p-4 rounded-xl border-2 dark:border-slate-700 flex items-center gap-3 text-slate-700 dark:text-white font-bold hover:bg-slate-50 dark:hover:bg-slate-900"><Download/> Backup de Dados</button>
           <label className="w-full p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center gap-3 text-slate-700 dark:text-white font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"><Upload className="text-slate-400"/> <div className="text-left"><div>Restaurar Backup</div><div className="text-xs text-slate-400 font-normal">Selecione o arquivo .json</div></div><input type="file" onChange={handleImport} accept=".json" className="hidden"/></label>
         </div>
+        
+        <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
+        <div className="text-center text-xs text-slate-400">v1.4 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
