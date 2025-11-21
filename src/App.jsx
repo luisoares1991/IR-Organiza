@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, LogOut, LogIn, Save, Database, AlertCircle } from 'lucide-react';
+import { Camera, Upload, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, Activity, GraduationCap, HelpCircle, FileType, Settings, Download, Heart, Coffee, ExternalLink, Edit, ArrowLeft, LogOut, LogIn, Save, Database, AlertCircle } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
@@ -144,11 +144,13 @@ export default function App() {
   // Auth & Data Fetching
   useEffect(() => {
     const initAuth = async () => {
-      // Tenta logar anonimamente se não tiver sessão (para uso imediato)
       try { 
-        // Pequeno delay para evitar conflito se o listener de auth já estiver disparando
+        // Pequeno delay para garantir que o Firebase inicializou
         setTimeout(async () => {
-            if (!auth.currentUser) await signInAnonymously(auth); 
+            if (!auth.currentUser) {
+                // Tenta login anônimo silencioso se não tiver usuário
+                await signInWithPopup(auth, googleProvider).catch(() => {}); 
+            }
         }, 1000);
       } catch (e) { console.error(e); }
     };
@@ -200,8 +202,8 @@ export default function App() {
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
-      // ALTERAÇÃO: Usando modelo estável 'gemini-1.5-flash' em vez do preview
-      const model = "gemini-1.5-flash";
+      // ALTERAÇÃO CRÍTICA: Usando modelo específico com versão '002' para evitar erro de "not found"
+      const model = "gemini-1.5-flash-002";
       
       const prompt = `Analise este documento (nota fiscal ou recibo). Retorne APENAS um JSON estrito com estes campos: { "razao_social": string, "cnpj_cpf": string_apenas_numeros, "valor": number, "data": "YYYY-MM-DD", "categoria": "Saúde" ou "Educação" ou "Previdência" ou "Outros", "descricao": string_curta }. Se algum campo não for encontrado, use null.`;
       
@@ -214,32 +216,25 @@ export default function App() {
         })
       });
       
-      // Tratamento de erro detalhado da API
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error?.message || `Erro ${res.status}`);
+        const errData = await res.json();
+        throw new Error(errData.error?.message || "Erro de conexão com a API");
       }
 
       const data = await res.json();
-      
-      if (!data.candidates || !data.candidates[0]?.content) {
-         throw new Error("A IA não retornou dados legíveis.");
-      }
-
       const result = JSON.parse(data.candidates[0].content.parts[0].text);
-      
-      setReviewData({
-        ...result,
-        valor: result.valor || '',
-        data: result.data || new Date().toISOString().split('T')[0],
-        categoria: result.categoria || 'Outros',
-        dependente: 'Titular',
-        razao_social: result.razao_social || 'Não identificado',
-        descricao: result.descricao || ''
+      setReviewData({ 
+          ...result, 
+          valor: result.valor||'', 
+          data: result.data||new Date().toISOString().split('T')[0], 
+          categoria: result.categoria||'Outros', 
+          dependente: 'Titular', 
+          razao_social: result.razao_social||'Não identificado', 
+          descricao: result.descricao||'' 
       });
     } catch (e) {
-      console.error("Erro na Análise:", e);
-      alert(`Erro na análise: ${e.message}`); // Mostra o erro real para o usuário
+      console.error(e);
+      alert(`Erro na análise: ${e.message}. Tente preencher manualmente.`);
       setReviewData({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
     } finally { setAnalyzing(false); }
   };
@@ -346,20 +341,17 @@ export default function App() {
   // --- RENDER ---
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
 
-  // Se não tiver user, mostra tela de login simples
   if (!user) {
-      return (
-        <div className="h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-6 text-center">
-            <div className="bg-blue-600 p-4 rounded-2xl mb-6 shadow-xl shadow-blue-200 dark:shadow-none">
-                <FileText size={48} className="text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">IR Organiza</h1>
-            <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">Seu assistente inteligente.</p>
-            <Button onClick={handleLogin} className="w-full max-w-xs py-4 text-lg shadow-xl"><LogIn size={24} /> Entrar com Google</Button>
-            {/* Botão de login anônimo de fallback caso o Google falhe */}
-            <button onClick={() => signInAnonymously(auth)} className="mt-4 text-slate-400 text-xs underline">Entrar sem conta (Dados temporários)</button>
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-6 text-center">
+        <div className="bg-blue-600 p-4 rounded-2xl mb-6 shadow-xl shadow-blue-200 dark:shadow-none">
+           <FileText size={48} className="text-white" />
         </div>
-      );
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">IR Organiza</h1>
+        <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">Seu assistente inteligente para organizar recibos e declarações.</p>
+        <Button onClick={handleLogin} className="w-full max-w-xs py-4 text-lg shadow-xl"><LogIn size={24} /> Entrar com Google</Button>
+      </div>
+    );
   }
 
   const renderDashboard = () => {
@@ -473,11 +465,8 @@ export default function App() {
         </div>
         <div className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-slate-900 rounded-xl">
            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">{user.displayName?.[0] || user.uid.slice(0,2).toUpperCase()}</div>
-           <div><div className="font-bold text-slate-900 dark:text-white">{user.isAnonymous ? 'Visitante (Não salvo)' : user.displayName}</div><div className="text-xs text-slate-500">{user.email || 'Login Anônimo'}</div></div>
+           <div><div className="font-bold text-slate-900 dark:text-white">{user.displayName || 'Usuário'}</div><div className="text-xs text-slate-500">{user.email}</div></div>
         </div>
-        
-        {user.isAnonymous && <div className="bg-yellow-50 text-yellow-800 p-3 rounded-lg text-sm flex gap-2 items-center"><AlertCircle size={16}/> Seus dados são temporários. Faça login para não perder.</div>}
-
         <div><h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Aparência</h3><div className="grid grid-cols-3 gap-2">{['light','dark','system'].map(m=><button key={m} onClick={()=>setTheme(m)} className={`p-3 rounded-xl border-2 flex flex-col items-center ${theme===m?'border-blue-600 bg-blue-50 text-blue-600':'border-slate-200 dark:border-slate-700 dark:text-white'}`}><span className="capitalize text-xs">{m}</span></button>)}</div></div>
         
         <Card className="bg-gradient-to-br from-pink-500 to-rose-600 text-white border-none p-5">
@@ -492,7 +481,7 @@ export default function App() {
         </div>
         
         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
-        <div className="text-center text-xs text-slate-400">v1.4 - {user.uid.slice(0,6)}</div>
+        <div className="text-center text-xs text-slate-400">v1.5 - {user.uid.slice(0,6)}</div>
      </div>
   );
 
