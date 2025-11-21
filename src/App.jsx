@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Upload, Check, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Calendar, Activity, GraduationCap, HelpCircle, FileType, Settings, UserPlus, Download, FileJson, AlertTriangle, Moon, Sun, Monitor, Filter, Save, Share2, HardDrive, Database, Heart, Coffee, ExternalLink, Github, Edit, ArrowLeft } from 'lucide-react';
+import { Camera, Upload, Check, X, Trash2, PieChart, FileText, Plus, ChevronRight, Users, DollarSign, Calendar, Activity, GraduationCap, HelpCircle, FileType, Settings, UserPlus, Download, FileJson, AlertTriangle, Moon, Sun, Monitor, Filter, Save, Share2, HardDrive, Database, Heart, Coffee, ExternalLink, Github, Edit, ArrowLeft, LogIn, LogOut } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { getFirestore, collection, addDoc, query, onSnapshot, deleteDoc, doc, orderBy, Timestamp, getDocs, updateDoc } from 'firebase/firestore';
 
-// --- CONFIGURAÇÃO FIREBASE (Segura via Variáveis de Ambiente) ---
-// O Vite injeta automaticamente as variáveis definidas no arquivo .env
+// --- CONFIGURAÇÃO FIREBASE ---
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -15,11 +14,11 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Inicializando Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+const googleProvider = new GoogleAuthProvider();
 
 // --- INDEXED DB (Armazenamento Local de Imagens) ---
 const DB_NAME = 'IROrganiza_Images';
@@ -128,6 +127,7 @@ const formatCurrency = (value) => {
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true); // Novo estado para loading do auth
   const [view, setView] = useState('dashboard'); 
   const [expenses, setExpenses] = useState([]);
   const [dependents, setDependents] = useState([]);
@@ -172,19 +172,34 @@ export default function App() {
     }
   }, [theme]);
 
-  // --- AUTH & DATA ---
+  // --- AUTH (GOOGLE LOGIN) ---
   useEffect(() => {
-    const initAuth = async () => {
-      try { await signInAnonymously(auth); } 
-      catch (error) { console.error("Erro na autenticação:", error); }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    // Monitora o estado do login
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
     return () => unsubscribe();
   }, []);
 
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      alert("Erro no login com Google: " + error.message);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (confirm("Tem certeza que deseja sair?")) {
+      await signOut(auth);
+    }
+  };
+
+  // --- DATA FETCHING ---
   useEffect(() => {
     if (!user) return;
+    
     const qExpenses = collection(db, 'artifacts', appId, 'users', user.uid, 'expenses');
     const unsubExpenses = onSnapshot(qExpenses, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -225,8 +240,10 @@ export default function App() {
     
     try {
       const cleanBase64 = base64Data.split(',')[1];
-      // Acessando a chave do Gemini de forma segura via variável de ambiente
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+
+      // Usando o modelo 2.5 que funcionou bem antes
+      const model = "gemini-2.5-flash-preview-09-2025";
 
       const prompt = `
         Analise este documento (nota fiscal, recibo ou fatura) para Imposto de Renda Brasileiro.
@@ -242,7 +259,7 @@ export default function App() {
         Se algum campo não estiver claro, tente inferir pelo contexto ou deixe como null.
       `;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -250,6 +267,11 @@ export default function App() {
           generationConfig: { responseMimeType: "application/json" }
         })
       });
+
+      if (!response.ok) {
+         const errData = await response.json();
+         throw new Error(errData.error?.message || "Erro na API do Gemini");
+      }
 
       const data = await response.json();
       const result = JSON.parse(data.candidates[0].content.parts[0].text);
@@ -266,7 +288,7 @@ export default function App() {
 
     } catch (error) {
       console.error("Erro:", error);
-      alert("Não foi possível analisar automaticamente. Verifique sua chave de API ou preencha manualmente.");
+      alert(`Não foi possível analisar automaticamente (${error.message}). Preencha manualmente.`);
       setReviewData({ razao_social: '', cnpj_cpf: '', valor: '', data: '', categoria: 'Outros', dependente: 'Titular', descricao: '' });
     } finally {
       setAnalyzing(false);
@@ -286,6 +308,7 @@ export default function App() {
         ...reviewData,
         valor: parseFloat(reviewData.valor),
         createdAt: new Date().toISOString(),
+        // Se for edição, mantém o hasAttachment antigo se não houver arquivo novo
         hasAttachment: !!scannedFile || (editingId ? (selectedExpense?.hasAttachment || false) : false),
         mimeType: scannedFileType || (editingId ? (selectedExpense?.mimeType || '') : '')
       };
@@ -368,10 +391,12 @@ export default function App() {
   const handleShareOrDownload = async () => {
     if (!selectedExpense || !selectedExpenseImage) return;
 
+    // Converter Base64 para Blob para permitir download/share
     const fetchRes = await fetch(selectedExpenseImage);
     const blob = await fetchRes.blob();
     const file = new File([blob], `recibo_${selectedExpense.razao_social.replace(/\s+/g, '_')}_${selectedExpense.data}.jpg`, { type: blob.type });
 
+    // Tentar usar API nativa de compartilhamento (Mobile)
     if (navigator.share) {
       try {
         await navigator.share({
@@ -385,6 +410,7 @@ export default function App() {
       }
     }
 
+    // Fallback: Download direto (Desktop ou se Share falhar)
     const link = document.createElement('a');
     link.href = selectedExpenseImage;
     link.download = `recibo_${selectedExpense.razao_social}_${selectedExpense.data}.jpg`;
@@ -461,14 +487,46 @@ export default function App() {
     return acc;
   }, {});
 
-  // ... Dashboard, Review, List, Settings code is similar, just adapted for flow ...
+  // TELA DE LOGIN (RENDER CONDICIONAL)
+  if (authLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-6 text-center">
+        <div className="bg-blue-600 p-4 rounded-2xl mb-6 shadow-xl shadow-blue-200 dark:shadow-none">
+           <FileText size={48} className="text-white" />
+        </div>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">IR Organiza</h1>
+        <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-xs">
+          Seu assistente inteligente para organizar recibos e declarações do Imposto de Renda.
+        </p>
+        
+        <Button onClick={handleLogin} className="w-full max-w-xs py-4 text-lg shadow-xl">
+          <LogIn size={24} />
+          Entrar com Google
+        </Button>
+        
+        <p className="text-xs text-slate-400 mt-6 max-w-xs mx-auto">
+          Faça login para manter seus dados seguros e sincronizados na nuvem.
+        </p>
+      </div>
+    );
+  }
+
+  // --- TELAS DO APP (SÓ RENDERIZA SE TIVER USER) ---
 
   const renderDashboard = () => (
     <div className="space-y-6 pb-24">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">IR Organiza</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">Suas despesas dedutíveis</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Olá, {user.displayName?.split(' ')[0]}</p>
         </div>
         <button onClick={() => setView('settings')} className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
           <Settings size={24} />
@@ -618,6 +676,21 @@ export default function App() {
         <h2 className="font-bold text-lg text-slate-900 dark:text-white">Configurações</h2>
       </div>
       <div className="p-4 space-y-6">
+        
+        <div className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-slate-900 rounded-xl">
+           {user.photoURL ? (
+             <img src={user.photoURL} className="w-12 h-12 rounded-full border-2 border-white dark:border-slate-700" />
+           ) : (
+             <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xl">
+               {user.displayName ? user.displayName[0] : 'U'}
+             </div>
+           )}
+           <div>
+             <div className="font-bold text-slate-900 dark:text-white">{user.displayName || 'Usuário'}</div>
+             <div className="text-xs text-slate-500">{user.email}</div>
+           </div>
+        </div>
+
         {/* DONATE SECTION */}
         <Card className="bg-gradient-to-br from-pink-500 to-rose-600 text-white border-none p-5">
           <div className="flex items-center gap-2 mb-3">
@@ -678,6 +751,8 @@ export default function App() {
             </div>
             <input type="file" onChange={handleImport} accept=".json" className="hidden"/>
          </label>
+         
+         <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center gap-2"><LogOut/> Sair da Conta</button>
       </div>
     </div>
   );
@@ -686,7 +761,6 @@ export default function App() {
      const availableYears = [...new Set(expenses.map(e => new Date(e.data).getFullYear()))].sort((a,b) => b - a);
      if (availableYears.length === 0) { const currentYear = new Date().getFullYear(); if (!availableYears.includes(currentYear)) availableYears.push(currentYear); }
      
-     // Se não houver ano selecionado, usar o mais recente
      const targetYear = filterYear || availableYears[0].toString();
      const filteredExpenses = expenses.filter(e => new Date(e.data).getFullYear().toString() === targetYear);
 
@@ -840,3 +914,5 @@ export default function App() {
     </div>
   );
 }
+
+
