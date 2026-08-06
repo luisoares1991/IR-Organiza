@@ -1,0 +1,7 @@
+ARQRIO SOCIAL RESEARCH TRANSPORT
+https://missas-diocese-itaguai-git-data-8b2676-luisoares1991s-projects.vercel.app/api/research/arqrio-socials?page=1
+https://missas-diocese-itaguai-git-data-8b2676-luisoares1991s-projects.vercel.app/api/research/arqrio-socials?page=2
+https://missas-diocese-itaguai-git-data-8b2676-luisoares1991s-projects.vercel.app/api/research/arqrio-socials?page=3
+https://missas-diocese-itaguai-git-data-8b2676-luisoares1991s-projects.vercel.app/api/research/arqrio-socials?page=4
+https://missas-diocese-itaguai-git-data-8b2676-luisoares1991s-projects.vercel.app/api/research/arqrio-socials?page=5
+https://missas-diocese-itaguai-git-data-8b2676-luisoares1991s-projects.vercel.app/api/research/arqrio-socials?page=6
