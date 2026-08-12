@@ -294,7 +294,7 @@ export default function App() {
     try {
       const cleanBase64 = base64Data.split(',')[1];
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-      const model = "gemini-2.5-flash-preview-09-2025";
+      const model = "gemini-flash-latest";
 
       const prompt = `
         Analise este documento (nota fiscal, recibo ou fatura) para Imposto de Renda Brasileiro.
