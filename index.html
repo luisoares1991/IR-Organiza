@@ -68,6 +68,17 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){window.dataLayer.push(arguments);}
       gtag('js', new Date());
+      let analyticsConsent = 'denied';
+      try {
+        analyticsConsent = localStorage.getItem('recibos_ir_analytics_consent') === 'granted' ? 'granted' : 'denied';
+      } catch (_) { /* keep optional analytics disabled */ }
+      gtag('consent', 'default', {
+        analytics_storage: analyticsConsent,
+        ad_storage: 'denied',
+        ad_user_data: 'denied',
+        ad_personalization: 'denied',
+        wait_for_update: 500
+      });
       gtag('config', 'G-FK99XWJ7YD', {
         anonymize_ip: true,
         allow_google_signals: false,

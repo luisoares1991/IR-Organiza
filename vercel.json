@@ -4,6 +4,14 @@
     {
       "source": "/__/auth/:path*",
       "destination": "https://ir-app-71b88.firebaseapp.com/__/auth/:path*"
+    },
+    {
+      "source": "/privacidade",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/termos",
+      "destination": "/index.html"
     }
   ]
 }

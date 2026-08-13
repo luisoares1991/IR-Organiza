@@ -11,8 +11,9 @@ import { ReviewScreen } from './check';
 import { DetailScreen } from './detail';
 import { DependentsScreen } from './family';
 import { SettingsScreen } from './options';
+import { LegalPage } from './legal';
 
-export default function App() {
+function MainApp() {
   const authState = useAuthState();
   const viewState = useViewState();
   const dataState = useDataState({
@@ -63,4 +64,11 @@ export default function App() {
     </div>
     <nav className="fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 rounded-[24px] border border-slate-200/80 bg-white/95 p-2 shadow-[0_16px_50px_rgba(15,23,42,.18)] backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 lg:hidden">{navItems.map(([key,label,Icon]) => { const active=app.view===key; const add=key==='scan'; return <button key={key} onClick={() => go(key)} className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-bold ${add?'-mt-6':''} ${active?'text-teal-700 dark:text-teal-300':'text-slate-400'}`}>{add?<span className="flex h-14 w-14 items-center justify-center rounded-full bg-teal-700 text-white shadow-lg shadow-teal-900/25">{React.createElement(Icon,{size:26})}</span>:React.createElement(Icon,{size:21})}<span>{label}</span></button>})}</nav>
   </main>;
+}
+
+export default function App() {
+  const legalPath = window.location.pathname.replace(/\/+$/, '');
+  if (legalPath === '/privacidade') return <LegalPage type="privacy" />;
+  if (legalPath === '/termos') return <LegalPage type="terms" />;
+  return <MainApp />;
 }
