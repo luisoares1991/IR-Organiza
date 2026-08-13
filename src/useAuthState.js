@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   updateProfile,
 } from 'firebase/auth';
@@ -26,9 +28,17 @@ const authErrorMessage = (error) => {
     'auth/weak-password': 'Use uma senha com pelo menos 6 caracteres.',
     'auth/too-many-requests': 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.',
     'auth/user-disabled': 'Esta conta foi desativada.',
+    'auth/operation-not-allowed': 'O login por e-mail e senha ainda não foi habilitado no Firebase deste aplicativo.',
+    'auth/admin-restricted-operation': 'A criação de contas está bloqueada na configuração do Firebase.',
+    'auth/configuration-not-found': 'O método de autenticação ainda não foi configurado no Firebase.',
+    'auth/app-not-authorized': 'Este domínio não está autorizado a usar o Firebase Authentication.',
+    'auth/invalid-api-key': 'A configuração do Firebase publicada no aplicativo é inválida.',
+    'auth/cancelled-popup-request': 'A tentativa anterior de login foi interrompida. Tente novamente.',
+    'auth/operation-not-supported-in-this-environment': 'Este navegador não permite o login por janela. Tente novamente para usar o redirecionamento seguro.',
+    'auth/internal-error': 'O Firebase não conseguiu concluir a autenticação. Tente novamente em alguns instantes.',
   };
 
-  return messages[error?.code] || `Não foi possível concluir a autenticação${error?.code ? ` (${error.code})` : ''}. Tente novamente.`;
+  return messages[error?.code] || `Não foi possível concluir a autenticação${error?.code ? ` — ${error.code}` : ''}. Tente novamente.`;
 };
 
 export function useAuthState() {
@@ -38,29 +48,58 @@ export function useAuthState() {
   const [authError, setAuthError] = useState('');
   const [authNotice, setAuthNotice] = useState('');
 
-  useEffect(() => onAuthStateChanged(
-    auth,
-    (current) => {
-      setUser(current);
-      setAuthLoading(false);
-      if (current) setAuthError('');
-    },
-    (error) => {
-      console.error('[auth] Failed to restore session', { code: error?.code, message: error?.message });
+  useEffect(() => {
+    getRedirectResult(auth).then((credential) => {
+      if (credential?.user) {
+        setUser(credential.user);
+        setAuthError('');
+        window.gtag?.('event', 'login', { method: 'Google' });
+      }
+    }).catch((error) => {
+      console.error('[auth] Google redirect result failed', { code: error?.code, message: error?.message });
       setAuthError(authErrorMessage(error));
-      setAuthLoading(false);
-    },
-  ), []);
+    });
+
+    return onAuthStateChanged(
+      auth,
+      (current) => {
+        setUser(current);
+        setAuthLoading(false);
+        if (current) setAuthError('');
+      },
+      (error) => {
+        console.error('[auth] Failed to restore session', { code: error?.code, message: error?.message });
+        setAuthError(authErrorMessage(error));
+        setAuthLoading(false);
+      },
+    );
+  }, []);
 
   const login = async () => {
     setLoginLoading(true);
     setAuthError('');
     setAuthNotice('');
     try {
+      const useRedirect = window.matchMedia?.('(display-mode: standalone)').matches
+        || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (useRedirect) {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
       const credential = await signInWithPopup(auth, googleProvider);
       setUser(credential.user);
       window.gtag?.('event', 'login', { method: 'Google' });
     } catch (error) {
+      if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(error?.code)) {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectError) {
+          console.error('[auth] Google redirect fallback failed', { code: redirectError?.code, message: redirectError?.message });
+          setAuthError(authErrorMessage(redirectError));
+          return;
+        }
+      }
       console.error('[auth] Google sign-in failed', { code: error?.code, message: error?.message });
       setAuthError(authErrorMessage(error));
     } finally {
