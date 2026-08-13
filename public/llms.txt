@@ -1,0 +1,19 @@
+# Recibos IR
+
+> Aplicativo web brasileiro para organizar recibos e comprovantes relacionados ao Imposto de Renda.
+
+## URL oficial
+
+- https://ir-app.luisandre.com.br/
+
+## Recursos principais
+
+- Captura de recibos por foto, imagem e PDF.
+- Extração assistida por inteligência artificial com revisão humana.
+- Organização por ano-base, categoria, titular e dependentes.
+- Backup e exportação de um pacote para o contador.
+- Metadados sincronizados para contas autenticadas; arquivos mantidos localmente no dispositivo.
+
+## Observação fiscal
+
+As classificações oferecidas pelo aplicativo são auxiliares e não substituem a conferência das regras tributárias aplicáveis a cada caso.

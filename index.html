@@ -3,20 +3,100 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#087e72" />
-    <meta name="description" content="Organize comprovantes e despesas do Imposto de Renda durante o ano, com leitura assistida por IA e arquivos armazenados localmente." />
-    <meta name="robots" content="index,follow" />
-    <meta property="og:title" content="Recibos IR" />
-    <meta property="og:description" content="Seus comprovantes organizados durante o ano, sem correria na época da declaração." />
-    <meta property="og:image" content="/brand-mark.svg" />
+    <meta name="theme-color" content="#087e72" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="Organize recibos e comprovantes do Imposto de Renda, extraia dados com auxílio de IA e prepare tudo para a declaração." />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+    <meta name="author" content="Luis Ramos" />
+    <meta name="application-name" content="Recibos IR" />
+    <meta name="apple-mobile-web-app-title" content="Recibos IR" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="canonical" href="https://ir-app.luisandre.com.br/" />
+    <meta property="og:locale" content="pt_BR" />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Recibos IR" />
+    <meta property="og:title" content="Recibos IR | Sua declaração tranquila" />
+    <meta property="og:description" content="Seus recibos organizados durante o ano, com leitura assistida por IA e revisão simples." />
+    <meta property="og:url" content="https://ir-app.luisandre.com.br/" />
+    <meta property="og:image" content="https://ir-app.luisandre.com.br/og-image.png" />
+    <meta property="og:image:secure_url" content="https://ir-app.luisandre.com.br/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Recibos IR — seus recibos organizados, sua declaração tranquila" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Recibos IR | Sua declaração tranquila" />
+    <meta name="twitter:description" content="Organize seus comprovantes do Imposto de Renda com leitura assistida por IA." />
+    <meta name="twitter:image" content="https://ir-app.luisandre.com.br/og-image.png" />
+    <meta name="twitter:image:alt" content="Recibos IR — seus recibos organizados, sua declaração tranquila" />
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+    <script>
+      try {
+        const savedTheme = localStorage.getItem('app_theme') || 'system';
+        const useDark = savedTheme === 'dark' || (savedTheme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', useDark);
+      } catch (_) { /* localStorage may be unavailable in restricted browsing modes */ }
+    </script>
     <link rel="icon" type="image/svg+xml" href="/brand-mark.svg" />
-    <link rel="apple-touch-icon" href="/brand-mark.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Recibos IR",
+        "alternateName": "IR Organiza",
+        "url": "https://ir-app.luisandre.com.br/",
+        "description": "Aplicativo web para organizar recibos e comprovantes do Imposto de Renda com leitura assistida por inteligência artificial e revisão humana.",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Web, Android, iOS, Windows, macOS",
+        "inLanguage": "pt-BR",
+        "browserRequirements": "Requires JavaScript",
+        "isAccessibleForFree": true,
+        "image": "https://ir-app.luisandre.com.br/og-image.png",
+        "author": {
+          "@type": "Person",
+          "name": "Luis Ramos"
+        }
+      }
+    </script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FK99XWJ7YD"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){window.dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FK99XWJ7YD', {
+        anonymize_ip: true,
+        allow_google_signals: false,
+        allow_ad_personalization_signals: false,
+        transport_type: 'beacon'
+      });
+    </script>
     <title>Recibos IR | Comprovantes do Imposto de Renda</title>
   </head>
   <body>
-    <div id="root"></div>
+    <noscript>O Recibos IR precisa de JavaScript para organizar e revisar seus comprovantes.</noscript>
+    <div id="root">
+      <main>
+        <header>
+          <h1>Recibos IR — organize seus comprovantes do Imposto de Renda</h1>
+          <p>Reúna recibos, notas e comprovantes ao longo do ano, extraia informações com auxílio de inteligência artificial e revise os dados antes de preparar sua declaração.</p>
+        </header>
+        <section aria-labelledby="recursos">
+          <h2 id="recursos">Organização simples e segura</h2>
+          <ul>
+            <li>Captura de recibos por foto, imagem ou PDF.</li>
+            <li>Leitura assistida por IA com conferência humana.</li>
+            <li>Organização por ano-base, categoria, titular e dependentes.</li>
+            <li>Exportação de registros e pacote para o contador.</li>
+            <li>Comprovantes armazenados localmente no dispositivo.</li>
+          </ul>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

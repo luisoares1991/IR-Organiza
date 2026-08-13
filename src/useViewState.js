@@ -23,6 +23,13 @@ export function useViewState() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  useEffect(() => {
+    window.gtag?.('event', 'screen_view', {
+      app_name: 'Recibos IR',
+      screen_name: view,
+    });
+  }, [view]);
+
   const navigate = (next) => {
     if (next === view) return;
     window.history.pushState({ view: next }, '', '');

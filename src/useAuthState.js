@@ -59,6 +59,7 @@ export function useAuthState() {
     try {
       const credential = await signInWithPopup(auth, googleProvider);
       setUser(credential.user);
+      window.gtag?.('event', 'login', { method: 'Google' });
     } catch (error) {
       console.error('[auth] Google sign-in failed', { code: error?.code, message: error?.message });
       setAuthError(authErrorMessage(error));
@@ -73,6 +74,7 @@ export function useAuthState() {
     setAuthNotice('');
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
+      window.gtag?.('event', 'login', { method: 'Email' });
     } catch (error) {
       console.error('[auth] Email sign-in failed', { code: error?.code, message: error?.message });
       setAuthError(authErrorMessage(error));
@@ -92,6 +94,7 @@ export function useAuthState() {
       await sendEmailVerification(credential.user).catch((error) => {
         console.warn('[auth] Verification email could not be sent', { code: error?.code });
       });
+      window.gtag?.('event', 'sign_up', { method: 'Email' });
       setAuthNotice('Conta criada. Enviamos um link de confirmação para o seu e-mail.');
     } catch (error) {
       console.error('[auth] Account creation failed', { code: error?.code, message: error?.message });
@@ -136,7 +139,7 @@ export function useAuthState() {
 
   const guestLogin = async () => {
     if (!window.confirm('No modo visitante, seus dados e comprovantes ficam somente neste dispositivo. Se apagar os dados do navegador, você poderá perdê-los. Continuar?')) return;
-    try { await signInAnonymously(auth); }
+    try { await signInAnonymously(auth); window.gtag?.('event', 'login', { method: 'Guest' }); }
     catch (error) { alert(`Erro ao iniciar modo visitante: ${error.message}`); }
   };
 
