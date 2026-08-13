@@ -1,6 +1,8 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { useSession } from './useSession';
+import { useAuthState } from './useAuthState';
+import { useViewState } from './useViewState';
+import { useDataState } from './useDataState';
 import { useReceipts } from './useReceipts';
 import { useLibraryActions } from './useLibraryActions';
 import { usePwaInstall } from './usePwaInstall';
@@ -11,7 +13,15 @@ import { DependentsScreen } from './family';
 import { SettingsScreen } from './options';
 
 export default function App() {
-  const session = useSession();
+  const authState = useAuthState();
+  const viewState = useViewState();
+  const dataState = useDataState({
+    user: authState.user,
+    filterYear: viewState.filterYear,
+    search: viewState.search,
+    dependentFilter: viewState.dependentFilter,
+  });
+  const session = { ...authState, ...viewState, ...dataState };
   const receipts = useReceipts(session);
   const library = useLibraryActions(session);
   const pwa = usePwaInstall();
