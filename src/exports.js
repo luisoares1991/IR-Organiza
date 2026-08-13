@@ -88,7 +88,7 @@ export async function buildAccountantPack(expenses, dependents, year) {
 
   entries['despesas.csv'] = `\ufeff${rows.join('\r\n')}`;
   entries['dados.json'] = JSON.stringify({ year, exportedAt: new Date().toISOString(), expenses: selected, dependents }, null, 2);
-  entries['LEIA-ME.txt'] = [`IR Organiza — pacote do ano-base ${year}`, '', `${selected.length} registro(s) incluído(s).`, missing ? `${missing} comprovante(s) constam no cadastro, mas não estão armazenados neste dispositivo.` : 'Todos os comprovantes locais disponíveis foram incluídos.', '', 'Os rótulos de dedutibilidade são auxiliares e não substituem conferência das regras fiscais aplicáveis ao caso concreto.'].join('\r\n');
+  entries['LEIA-ME.txt'] = [`Recibos IR — pacote do ano-base ${year}`, '', `${selected.length} registro(s) incluído(s).`, missing ? `${missing} comprovante(s) constam no cadastro, mas não estão armazenados neste dispositivo.` : 'Todos os comprovantes locais disponíveis foram incluídos.', '', 'Os rótulos de dedutibilidade são auxiliares e não substituem conferência das regras fiscais aplicáveis ao caso concreto.'].join('\r\n');
 
   const bytes = makeZip(entries);
   return { blob: new Blob([bytes], { type: 'application/zip' }), count: selected.length, missing };

@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 
 export function usePwaInstall() {
   const [installEvent, setInstallEvent] = useState(null);
-  const [installed, setInstalled] = useState(false);
+  const [installed, setInstalled] = useState(() => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true);
 
   useEffect(() => {
-    setInstalled(window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true);
     const onInstallAvailable = (event) => {
       event.preventDefault();
       setInstallEvent(event);

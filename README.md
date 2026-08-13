@@ -1,6 +1,6 @@
-# 🦁 IR Organiza
+# Recibos IR
 
-Aplicativo web para organizar comprovantes e despesas ao longo do ano, com leitura assistida por IA e foco em conferência humana dos dados extraídos.
+Aplicativo web para organizar recibos, comprovantes e despesas ao longo do ano, com leitura assistida por IA e foco em conferência humana dos dados extraídos.
 
 ## Principais recursos
 
@@ -13,7 +13,8 @@ Aplicativo web para organizar comprovantes e despesas ao longo do ano, com leitu
 - **Titular e dependentes** vinculados por identificador, evitando quebrar o histórico ao reorganizar cadastros.
 - **Backup completo** com metadados e comprovantes locais.
 - **Pacote do contador** em ZIP com CSV, JSON e comprovantes disponíveis no dispositivo.
-- **Manifesto de instalação**, tema claro/escuro e interface mobile-first.
+- **Manifesto de instalação**, temas claro/escuro/sistema e interface responsiva para celular e desktop.
+- **Autenticação completa** com Google, e-mail e senha, criação de conta e recuperação de acesso.
 
 ## Privacidade e armazenamento
 

@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { onAuthStateChanged, signInAnonymously, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInAnonymously,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
 import { auth, googleProvider } from './services/firebase';
 
 const authErrorMessage = (error) => {
@@ -7,11 +17,18 @@ const authErrorMessage = (error) => {
     'auth/network-request-failed': 'Não foi possível conectar ao Google. Confira sua internet e tente novamente.',
     'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Autorize pop-ups para este site e tente novamente.',
     'auth/popup-closed-by-user': 'A janela do Google foi fechada antes de o login terminar.',
-    'auth/unauthorized-domain': 'Este endereço ainda não está autorizado para login. Tente novamente pelo endereço principal do IR Organiza.',
+    'auth/unauthorized-domain': 'Este endereço ainda não está autorizado para login. Tente novamente pelo endereço principal do Recibos IR.',
     'auth/web-storage-unsupported': 'O navegador está bloqueando o armazenamento necessário para manter o login.',
+    'auth/email-already-in-use': 'Este e-mail já está vinculado a uma conta. Entre com a sua senha ou recupere o acesso.',
+    'auth/invalid-credential': 'E-mail ou senha incorretos. Confira os dados ou recupere sua senha.',
+    'auth/invalid-email': 'Digite um endereço de e-mail válido.',
+    'auth/missing-password': 'Digite a sua senha.',
+    'auth/weak-password': 'Use uma senha com pelo menos 6 caracteres.',
+    'auth/too-many-requests': 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente novamente.',
+    'auth/user-disabled': 'Esta conta foi desativada.',
   };
 
-  return messages[error?.code] || `Não foi possível entrar com o Google${error?.code ? ` (${error.code})` : ''}. Tente novamente.`;
+  return messages[error?.code] || `Não foi possível concluir a autenticação${error?.code ? ` (${error.code})` : ''}. Tente novamente.`;
 };
 
 export function useAuthState() {
@@ -19,6 +36,7 @@ export function useAuthState() {
   const [authLoading, setAuthLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
 
   useEffect(() => onAuthStateChanged(
     auth,
@@ -37,12 +55,80 @@ export function useAuthState() {
   const login = async () => {
     setLoginLoading(true);
     setAuthError('');
+    setAuthNotice('');
     try {
       const credential = await signInWithPopup(auth, googleProvider);
       setUser(credential.user);
     } catch (error) {
       console.error('[auth] Google sign-in failed', { code: error?.code, message: error?.message });
       setAuthError(authErrorMessage(error));
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const emailLogin = async ({ email, password }) => {
+    setLoginLoading(true);
+    setAuthError('');
+    setAuthNotice('');
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+    } catch (error) {
+      console.error('[auth] Email sign-in failed', { code: error?.code, message: error?.message });
+      setAuthError(authErrorMessage(error));
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const createAccount = async ({ name, email, password }) => {
+    setLoginLoading(true);
+    setAuthError('');
+    setAuthNotice('');
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      await updateProfile(credential.user, { displayName: name.trim() });
+      setUser(credential.user);
+      await sendEmailVerification(credential.user).catch((error) => {
+        console.warn('[auth] Verification email could not be sent', { code: error?.code });
+      });
+      setAuthNotice('Conta criada. Enviamos um link de confirmação para o seu e-mail.');
+    } catch (error) {
+      console.error('[auth] Account creation failed', { code: error?.code, message: error?.message });
+      setAuthError(authErrorMessage(error));
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    if (!auth.currentUser || auth.currentUser.emailVerified) return;
+    setAuthNotice('');
+    setAuthError('');
+    try {
+      await sendEmailVerification(auth.currentUser);
+      setAuthNotice('Novo link de confirmação enviado. Confira também a caixa de spam.');
+    } catch (error) {
+      setAuthError(authErrorMessage(error));
+    }
+  };
+
+  const resetPassword = async (email) => {
+    if (!email?.trim()) {
+      setAuthError('Digite seu e-mail para receber o link de recuperação.');
+      return false;
+    }
+    setLoginLoading(true);
+    setAuthError('');
+    setAuthNotice('');
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setAuthNotice('Se este e-mail estiver cadastrado, você receberá um link para redefinir a senha.');
+      return true;
+    } catch (error) {
+      console.error('[auth] Password reset failed', { code: error?.code, message: error?.message });
+      setAuthError(authErrorMessage(error));
+      return false;
     } finally {
       setLoginLoading(false);
     }
@@ -59,8 +145,13 @@ export function useAuthState() {
     authLoading,
     loginLoading,
     authError,
+    authNotice,
     isGuest: Boolean(user?.isAnonymous),
     login,
+    emailLogin,
+    createAccount,
+    resetPassword,
+    resendVerification,
     guestLogin,
     logout: () => signOut(auth),
   };

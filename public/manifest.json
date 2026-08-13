@@ -1,13 +1,13 @@
 {
-  "name": "IR Organiza",
-  "short_name": "IR Organiza",
+  "name": "Recibos IR | Sua declaração tranquila",
+  "short_name": "Recibos IR",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#2563eb",
+  "background_color": "#f5f8f7",
+  "theme_color": "#087e72",
   "icons": [
-    { "src": "/logo.png", "sizes": "any", "type": "image/png", "purpose": "any" },
-    { "src": "/logo.png", "sizes": "any", "type": "image/png", "purpose": "maskable" }
+    { "src": "/brand-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/brand-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
   ]
 }

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Recibos IR</title>
+  <defs>
+    <linearGradient id="bg" x1="64" y1="32" x2="448" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#16A58D"/>
+      <stop offset=".52" stop-color="#087E72"/>
+      <stop offset="1" stop-color="#075569"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="154" y1="104" x2="340" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D9F4EE"/>
+    </linearGradient>
+  </defs>
+  <rect x="28" y="28" width="456" height="456" rx="116" fill="url(#bg)"/>
+  <path d="M136 116c0-18 14-32 32-32h145l63 63v224c0 18-14 32-32 32H168c-18 0-32-14-32-32V116Z" fill="url(#paper)"/>
+  <path d="M313 84v63h63" fill="#BCE8DE"/>
+  <path d="M190 194h114M190 244h86M190 294h104" stroke="#087E72" stroke-width="25" stroke-linecap="round"/>
+  <circle cx="357" cy="357" r="82" fill="#073F52" stroke="#E7FAF5" stroke-width="13"/>
+  <path d="m320 357 25 25 49-57" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

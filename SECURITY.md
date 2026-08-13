@@ -8,7 +8,7 @@ As variáveis `VITE_FIREBASE_*` identificam o aplicativo web Firebase. A proteç
 
 ## Comprovantes
 
-Imagens e PDFs são armazenados no IndexedDB do próprio dispositivo. Durante a leitura automática, uma cópia otimizada do documento é enviada ao endpoint `/api/analyze`, que autentica a sessão e encaminha o conteúdo ao Gemini. O IR Organiza não grava esse arquivo no Firestore.
+Imagens e PDFs são armazenados no IndexedDB do próprio dispositivo. Durante a leitura automática, uma cópia otimizada do documento é enviada ao endpoint `/api/analyze`, que autentica a sessão e encaminha o conteúdo ao Gemini. O Recibos IR não grava esse arquivo no Firestore.
 
 ## Modo visitante
 

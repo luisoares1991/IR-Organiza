@@ -19,7 +19,7 @@ export function useDataState({ user, filterYear, search, dependentFilter }) {
   useEffect(() => {
     if (!user) return undefined;
     if (user.isAnonymous) {
-      refreshGuest().catch(console.error);
+      queueMicrotask(() => refreshGuest().catch(console.error));
       return undefined;
     }
 
