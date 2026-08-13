@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import {
   browserLocalPersistence,
+  browserPopupRedirectResolver,
   browserSessionPersistence,
   GoogleAuthProvider,
   indexedDBLocalPersistence,
@@ -24,6 +25,7 @@ export const auth = initializeAuth(firebaseApp, {
     browserLocalPersistence,
     browserSessionPersistence,
   ],
+  popupRedirectResolver: browserPopupRedirectResolver,
 });
 export const db = getFirestore(firebaseApp);
 export const appId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
