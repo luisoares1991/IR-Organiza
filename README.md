@@ -1,86 +1,86 @@
-🦁 IR Organiza
+# 🦁 IR Organiza
 
-Seu assistente pessoal, movido a Inteligência Artificial, para organizar recibos e despesas dedutíveis do Imposto de Renda.
+Aplicativo web para organizar comprovantes e despesas ao longo do ano, com leitura assistida por IA e foco em conferência humana dos dados extraídos.
 
-📱 Sobre o Projeto
+## Principais recursos
 
-O IR Organiza é uma Web App (PWA) desenvolvida para resolver a dor de cabeça de organizar a papelada para a declaração anual de imposto.
+- **Captura por foto, imagem ou PDF** com extração de prestador, CPF/CNPJ, valor, data, categoria e descrição.
+- **Sem inferência de campos fiscais:** se a IA não consegue ler um dado com segurança, o campo fica vazio para revisão.
+- **Indicadores de confiança** destacam campos que merecem conferência.
+- **Ano-base** aplicado ao dashboard, extrato e pacote de exportação.
+- **Busca e filtros** por prestador, documento, descrição, categoria e beneficiário.
+- **Detecção de possíveis duplicados** por arquivo e por combinação de CPF/CNPJ + data + valor.
+- **Titular e dependentes** vinculados por identificador, evitando quebrar o histórico ao reorganizar cadastros.
+- **Backup completo** com metadados e comprovantes locais.
+- **Pacote do contador** em ZIP com CSV, JSON e comprovantes disponíveis no dispositivo.
+- **Manifesto de instalação**, tema claro/escuro e interface mobile-first.
 
-Diferente de planilhas manuais, o app utiliza a IA do Google Gemini para ler fotos de recibos e notas fiscais, extraindo automaticamente:
+## Privacidade e armazenamento
 
-CNPJ/CPF do prestador
+Para usuários autenticados com Google, os **metadados** das despesas e dependentes são sincronizados pelo Firestore. Os **arquivos dos comprovantes** ficam no IndexedDB do dispositivo.
 
-Razão Social
+No **modo visitante**, despesas, dependentes e comprovantes ficam localmente no dispositivo. O Firebase Authentication anônimo é usado apenas para fornecer uma sessão autenticada ao endpoint de análise.
 
-Valor e Data
+Durante a leitura automática, uma cópia otimizada do comprovante é enviada ao endpoint `/api/analyze`, que autentica a sessão e chama o Gemini. A chave Gemini não é usada pelo código do navegador.
 
-Categoria (Saúde, Educação, etc.)
+Consulte também [`SECURITY.md`](SECURITY.md).
 
-✨ Principais Funcionalidades
+## IA
 
-📸 Leitura Inteligente: Basta tirar uma foto ou subir um PDF. A IA preenche os dados para você.
+O backend tenta os modelos nesta ordem:
 
-📂 Armazenamento Híbrido (Privacidade):
+1. `gemini-3.6-flash`
+2. `gemini-3.5-flash`
 
-Os dados (valores, datas) são salvos na nuvem (Firebase) para acesso em qualquer lugar.
+Se ambos falharem, o aplicativo mantém o comprovante aberto para preenchimento manual.
 
-As imagens dos recibos são salvas localmente no seu dispositivo (IndexedDB), garantindo privacidade total e economia de armazenamento.
+A classificação de situação da despesa é apenas um recurso de organização e não substitui a verificação das regras tributárias aplicáveis ao caso concreto.
 
-👶 Gestão de Dependentes: Vincule despesas a dependentes específicos automaticamente.
+## Configuração
 
-📊 Dashboard Financeiro: Acompanhe em tempo real o total dedutível acumulado no ano.
+Copie `.env.example` para `.env` no ambiente local e preencha as variáveis Firebase.
 
-🌙 Modo Escuro/Claro: Interface adaptável e moderna.
+A variável `GEMINI_API_KEY` deve ser configurada **somente no ambiente server-side** que executa `/api/analyze`. Não versione chaves ou comprovantes reais.
 
-💾 Backup & Restore: Exporte seus dados para JSON para segurança ou migração.
+```env
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+GEMINI_API_KEY=
+```
 
-📱 Instalação Nativa: Funciona como um app nativo no Android e iOS (Adicionar à Tela de Início).
+Se o backend estiver hospedado em outro domínio, configure também `VITE_ANALYZE_API_URL` para apontar para o endpoint compatível.
 
-⚙️ Configuração (Obrigatório)
+## Firestore
 
-Para rodar este projeto, você precisará das suas próprias chaves de API (é gratuito). O projeto utiliza variáveis de ambiente para segurança.
+As regras estão versionadas em `firestore.rules` e restringem os documentos de usuário ao próprio `request.auth.uid`. O arquivo `firebase.json` referencia essas regras para deploy via Firebase CLI.
 
-Crie um arquivo chamado .env na raiz do projeto.
+## Desenvolvimento
 
-Cole o seguinte conteúdo dentro dele:
-
-VITE_FIREBASE_API_KEY=sua_chave_aqui
-VITE_FIREBASE_AUTH_DOMAIN=seu-projeto.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=seu-projeto
-VITE_FIREBASE_STORAGE_BUCKET=seu-projeto.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=seu_id_numerico
-VITE_FIREBASE_APP_ID=seu_app_id
-VITE_GEMINI_API_KEY=sua_chave_gemini_aqui
-
-
-Onde conseguir as chaves?
-
-Firebase: Crie um projeto no Firebase Console. Vá em Configurações do Projeto > Geral > Seus aplicativos.
-
-Gemini AI: Gere uma chave gratuita no Google AI Studio.
-
-🚀 Como rodar localmente
-
-Clone o repositório:
-
-git clone [https://github.com/luisoares1991/IR-Organiza.git](https://github.com/luisoares1991/IR-Organiza.git)
-
-
-Instale as dependências:
-
-cd IR-Organiza
+```bash
 npm install
-
-
-Configure o arquivo .env (conforme explicado acima).
-
-Rode o servidor:
-
 npm run dev
+```
 
+O comando acima inicia o frontend Vite. Para testar a análise de IA localmente, execute também uma runtime serverless compatível com a rota `/api/analyze` ou configure `VITE_ANALYZE_API_URL`.
 
-🤝 Contribua
+Validação do projeto:
 
-Este é um projeto Open Source. Sinta-se livre para abrir Issues, sugerir melhorias ou enviar Pull Requests. A ideia é criar uma ferramenta útil para todos os brasileiros.
+```bash
+npm run check
+```
 
-Desenvolvido por Luis Ramos
+## Estrutura
+
+- `src/useSession.js` — autenticação, tema, navegação e sincronização/local-first.
+- `src/useReceipts.js` — captura, análise, revisão, duplicidade e comprovantes.
+- `src/useLibraryActions.js` — dependentes, backup, restauração e pacote do contador.
+- `src/localStore.js` — IndexedDB.
+- `src/services/analysis.js` — cliente do endpoint seguro.
+- `api/analyze.js` — integração server-side com Gemini e fallback de modelos.
+- `firestore.rules` — regras de acesso aos dados.
+
+Desenvolvido por Luis Ramos.
