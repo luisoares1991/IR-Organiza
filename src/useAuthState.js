@@ -14,6 +14,8 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from './services/firebase';
 
+const GOOGLE_REDIRECT_PENDING = 'recibos_ir_google_redirect_pending';
+
 const authErrorMessage = (error) => {
   const messages = {
     'auth/network-request-failed': 'Não foi possível conectar ao Google. Confira sua internet e tente novamente.',
@@ -49,13 +51,19 @@ export function useAuthState() {
   const [authNotice, setAuthNotice] = useState('');
 
   useEffect(() => {
+    const redirectWasPending = sessionStorage.getItem(GOOGLE_REDIRECT_PENDING) === '1';
     getRedirectResult(auth).then((credential) => {
       if (credential?.user) {
+        sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING);
         setUser(credential.user);
         setAuthError('');
         window.gtag?.('event', 'login', { method: 'Google' });
+      } else if (redirectWasPending && !auth.currentUser) {
+        sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING);
+        setAuthError('O Google retornou ao aplicativo, mas o Firebase não conseguiu restaurar a sessão. Verifique a URI de redirecionamento OAuth configurada para este domínio.');
       }
     }).catch((error) => {
+      sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING);
       console.error('[auth] Google redirect result failed', { code: error?.code, message: error?.message });
       setAuthError(authErrorMessage(error));
     });
@@ -83,6 +91,7 @@ export function useAuthState() {
       const useRedirect = window.matchMedia?.('(display-mode: standalone)').matches
         || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (useRedirect) {
+        sessionStorage.setItem(GOOGLE_REDIRECT_PENDING, '1');
         await signInWithRedirect(auth, googleProvider);
         return;
       }
@@ -92,9 +101,11 @@ export function useAuthState() {
     } catch (error) {
       if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(error?.code)) {
         try {
+          sessionStorage.setItem(GOOGLE_REDIRECT_PENDING, '1');
           await signInWithRedirect(auth, googleProvider);
           return;
         } catch (redirectError) {
+          sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING);
           console.error('[auth] Google redirect fallback failed', { code: redirectError?.code, message: redirectError?.message });
           setAuthError(authErrorMessage(redirectError));
           return;
