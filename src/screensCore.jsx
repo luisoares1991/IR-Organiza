@@ -10,7 +10,8 @@ export function LoginScreen({ app }) {
         <img src="/logo.png" alt="IR Organiza" className="mx-auto mb-6 h-24 w-24 rounded-3xl object-cover shadow-xl" />
         <h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">IR Organiza</h1>
         <p className="mt-2 text-slate-600 dark:text-slate-400">Seus comprovantes organizados durante o ano, sem correria na época da declaração.</p>
-        <button onClick={app.login} className="mt-8 w-full rounded-xl bg-blue-600 px-4 py-4 font-bold text-white shadow-lg shadow-blue-600/15">Entrar com Google</button>
+        <button onClick={app.login} disabled={app.loginLoading} className="mt-8 w-full rounded-xl bg-blue-600 px-4 py-4 font-bold text-white shadow-lg shadow-blue-600/15 disabled:cursor-wait disabled:opacity-70">{app.loginLoading ? 'Concluindo login…' : 'Entrar com Google'}</button>
+        {app.authError && <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-sm font-medium text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-300">{app.authError}</p>}
         <button onClick={app.guestLogin} className="mt-4 text-sm font-semibold text-slate-600 underline underline-offset-4 dark:text-slate-300">Usar somente neste dispositivo</button>
         <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-4 text-left text-xs leading-5 text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           <strong className="text-slate-700 dark:text-slate-200">Privacidade:</strong> o comprovante fica armazenado localmente. Durante a leitura automática, uma cópia temporária é enviada ao serviço de IA e não é salva pelo IR Organiza na nuvem.
