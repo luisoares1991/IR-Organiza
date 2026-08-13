@@ -1,6 +1,6 @@
 import React from 'react';
-import { auth } from './services/firebase';
+import { listGuestExpenses } from './localStore';
 
 export default function App() {
-  return <div>{auth ? 'OK' : 'Erro'}</div>;
+  return <button onClick={() => listGuestExpenses()}>OK</button>;
 }
