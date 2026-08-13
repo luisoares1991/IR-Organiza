@@ -1,0 +1,13 @@
+{
+  "name": "IR Organiza",
+  "short_name": "IR Organiza",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "/logo.png", "sizes": "any", "type": "image/png", "purpose": "any" },
+    { "src": "/logo.png", "sizes": "any", "type": "image/png", "purpose": "maskable" }
+  ]
+}
