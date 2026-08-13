@@ -24,6 +24,8 @@ export function useViewState() {
   }, []);
 
   useEffect(() => {
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
     window.gtag?.('event', 'screen_view', {
       app_name: 'Recibos IR',
       screen_name: view,

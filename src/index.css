@@ -8,12 +8,31 @@
   text-rendering: optimizeLegibility;
   color-scheme: light;
 }
+*, *::before, *::after { box-sizing: border-box; }
 html.dark { color-scheme: dark; }
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 html, body, #root { min-height: 100%; }
+body, #root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
 body { margin: 0; overscroll-behavior-y: none; background: #f5f8f7; }
 .dark body { background: #020617; }
-button, input, select { font: inherit; }
+button, input, select, textarea { min-width: 0; max-width: 100%; font: inherit; }
+img, svg, video, canvas { max-width: 100%; }
 button { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgb(13 148 136 / .35); outline-offset: 2px; }
 ::selection { background: rgb(153 246 228); color: rgb(19 78 74); }
 @supports (padding: max(0px)) { body { padding-bottom: env(safe-area-inset-bottom); } }
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 16px; }
+}
